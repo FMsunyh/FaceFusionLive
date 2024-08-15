@@ -1,0 +1,3 @@
+[submodule "Deep-Live-Cam"]
+	path = Deep-Live-Cam
+	url = https://github.com/hacksider/Deep-Live-Cam.git
