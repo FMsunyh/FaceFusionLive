@@ -30,6 +30,21 @@ logging.basicConfig(
 # frame_height = 720
 # fps = 30
 
+def measure_runtime(start_time):
+    """
+    记录程序的运行时长，并以小时、分钟、秒的格式输出。
+    """
+    # 记录结束时间
+    end_time = time.time()
+
+    # 计算运行时长
+    elapsed_time = end_time - start_time
+
+    # 将秒数转换为时分秒
+    hours, remainder = divmod(elapsed_time, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    logging.info(f"程序运行时长: {int(hours)} 小时 {int(minutes)} 分钟 {seconds:.2f} 秒")
 
 def process_single_frame(frame, frame_processors, source_image):
     for frame_processor in frame_processors:
@@ -51,6 +66,7 @@ def start_ffmpeg_process(width, height, fps,input_rtmp_url, output_rtmp_url):
     # Define the FFmpeg command to send the video stream
     ffmpeg_command = [
         'ffmpeg',
+        # '-hide_banner',  # 隐藏FFmpeg版本和版权信息
         '-y',  # Overwrite output files without asking
         '-f', 'rawvideo',  # Input format
         '-vcodec', 'rawvideo',
@@ -70,7 +86,10 @@ def start_ffmpeg_process(width, height, fps,input_rtmp_url, output_rtmp_url):
         output_rtmp_url
     ]
     
-    process = subprocess.Popen(ffmpeg_command, stdin=subprocess.PIPE)
+    process = subprocess.Popen(ffmpeg_command, 
+                               stderr=subprocess.PIPE,  # 捕获stderr输出
+                               stdin=subprocess.PIPE,
+                               text=True)
     logging.info(f"启动FFmpeg推流至：{output_rtmp_url}")
     return process
 
@@ -114,10 +133,24 @@ def cleanup_resources(cap, process):
     try:
         if process.stdin:
             process.stdin.close()
-        process.wait()
-        logging.info("FFmpeg进程已结束")
+            logging.info("FFmpeg stdin 已关闭")
     except Exception as e:
-        logging.warning(f"关闭FFmpeg进程时发生异常：{e}")
+        logging.warning(f"关闭FFmpeg stdin时发生异常：{e}")
+    
+    try:
+        # 尝试正常等待进程结束
+        process.wait(timeout=5)
+        logging.info("FFmpeg进程已正常结束")
+    except subprocess.TimeoutExpired:
+        logging.warning("等待FFmpeg进程结束超时，尝试强制终止")
+        try:
+            process.terminate()
+            process.wait(timeout=5)
+            logging.info("FFmpeg进程已被强制终止")
+        except Exception as e:
+            logging.error(f"强制终止FFmpeg进程时发生异常：{e}")
+    except Exception as e:
+        logging.warning(f"等待FFmpeg进程结束时发生异常：{e}")
 
     logging.info("已释放全部资源")
 
@@ -132,7 +165,7 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
     frame_buffer = []
     frame_count = 0
     exception_count = 0
-    last_frame_time = time.time()
+    start_time = time.time()
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -154,22 +187,29 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
 
         if frame_count % 3000 == 0:
             frame_count = 0
+            measure_runtime(start_time)
             logging.info("心跳正常...")
 
         if process.poll() is not None:
-            logging.error("FFmpeg进程已退出")
+            exit_code = process.poll()
+            if exit_code != 0:
+                # 捕获并记录FFmpeg的错误信息
+                ffmpeg_error = process.stderr.read()
+                logging.error(f"FFmpeg进程异常退出，退出码：{exit_code}")
+                logging.error(f"FFmpeg错误信息：{ffmpeg_error}")
+            else:
+                logging.info("FFmpeg进程已正常退出")
             break
 
         # if time.time() - last_frame_time > 10:
         #     logging.warning("超过10秒未接收到新帧")
         #     break
-        if exception_count % 30000 == 0:
-            exception_count = 0
-            logging.warning("假设异常退出")
-            break
+        # if exception_count % 300000 == 0:
+        #     exception_count = 0
+        #     logging.warning("假设异常退出")
+        #     break
 
 def stream_worker(input_rtmp_url, output_rtmp_url, face_source_path, frame_processors, restart_interval=5):
-
     """RTMP流处理工作进程，包含重试机制"""
     while True:
         try:
@@ -213,6 +253,7 @@ def manage_streams(streams):
                     processes[i] = new_p
                     logging.info(f"已重启进程 {new_p.name} 处理流：{input_url} -> {output_url}")
             time.sleep(5)
+            
     except KeyboardInterrupt:
         logging.info("检测到中断信号，正在关闭所有进程...")
         for p in processes:
@@ -223,7 +264,6 @@ def manage_streams(streams):
 
 def webcam():
     frame_processors = modules.globals.frame_processors
-    # frame_processors = None
     streams = [
         ('rtmp://120.241.153.43:1935/live111', 'rtmp://120.241.153.43:1935/live', modules.globals.source_path, frame_processors),
     ]
