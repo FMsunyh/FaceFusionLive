@@ -21,6 +21,8 @@ import modules.qt_ui as ui
 from modules.processors.frame.core import get_frame_processors_modules
 from modules.utilities import has_image_extension, is_image, is_video, detect_fps, create_video, extract_frames, get_temp_frame_paths, restore_audio, create_temp, move_temp, clean_temp, normalize_output_path
 
+from modules.face_live import webcam
+
 if 'ROCMExecutionProvider' in modules.globals.execution_providers:
     del torch
 
@@ -35,9 +37,9 @@ def parse_args() -> None:
     program.add_argument('-t', '--target', help='select an target image or video', dest='target_path')
     program.add_argument('-o', '--output', help='select output file or directory', dest='output_path')
     program.add_argument('--frame-processor', help='pipeline of frame processors', dest='frame_processor', default=['face_swapper'], choices=['face_swapper', 'face_enhancer'], nargs='+')
-    program.add_argument('--keep-fps', help='keep original fps', dest='keep_fps', action='store_true', default=False)
+    program.add_argument('--keep-fps', help='keep original fps', dest='keep_fps', action='store_true', default=True)
     program.add_argument('--keep-audio', help='keep original audio', dest='keep_audio', action='store_true', default=True)
-    program.add_argument('--keep-frames', help='keep temporary frames', dest='keep_frames', action='store_true', default=False)
+    program.add_argument('--keep-frames', help='keep temporary frames', dest='keep_frames', action='store_true', default=True)
     program.add_argument('--many-faces', help='process every face', dest='many_faces', action='store_true', default=False)
     program.add_argument('--video-encoder', help='adjust output video encoder', dest='video_encoder', default='libx264', choices=['libx264', 'libx265', 'libvpx-vp9'])
     program.add_argument('--video-quality', help='adjust output video quality', dest='video_quality', type=int, default=18, choices=range(52), metavar='[0-51]')
@@ -59,6 +61,7 @@ def parse_args() -> None:
     modules.globals.output_path = normalize_output_path(modules.globals.source_path, modules.globals.target_path, args.output_path)
     modules.globals.frame_processors = args.frame_processor
     modules.globals.headless = args.source_path or args.target_path or args.output_path
+    modules.globals.webcam = args.source_path or args.target_path or args.output_path
     modules.globals.keep_fps = args.keep_fps
     modules.globals.keep_audio = args.keep_audio
     modules.globals.keep_frames = args.keep_frames
@@ -224,6 +227,8 @@ def start() -> None:
     else:
         update_status('Processing to video failed!')
 
+def start_webcam():
+    webcam()
 
 def destroy() -> None:
     if modules.globals.target_path:
@@ -239,8 +244,10 @@ def run() -> None:
         if not frame_processor.pre_check():
             return
     limit_resources()
-    if modules.globals.headless:
-        start()
+    # if modules.globals.headless:
+    #     start()
+    if modules.globals.webcam:
+        start_webcam()
     else:
         window = ui.init(start, destroy)
         window.mainloop()

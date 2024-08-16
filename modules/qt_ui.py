@@ -15,6 +15,7 @@ from modules.processors.frame.core import get_frame_processors_modules
 from modules.utilities import is_image, is_video, resolve_relative_path
 from queue import Queue
 from threading import Thread
+from multiprocessing import Process
 
 ROOT = None
 ROOT_HEIGHT = 700
@@ -140,7 +141,7 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
     preview_button = ctk.CTkButton(root, text='Preview', cursor='hand2', command=lambda: toggle_preview())
     preview_button.place(relx=0.65, rely=0.80, relwidth=0.2, relheight=0.05)
 
-    live_button = ctk.CTkButton(root, text='Live', cursor='hand2', command=lambda: webcam_preview())
+    live_button = ctk.CTkButton(root, text='Live', cursor='hand2', command=lambda: start_webcam_preview())
     live_button.place(relx=0.40, rely=0.86, relwidth=0.2, relheight=0.05)
 
     status_label = ctk.CTkLabel(root, text=None, justify='center')
@@ -324,7 +325,7 @@ def capture_frames(cap, frame_queue):
     cap.release()
 
 # Thread function for pushing frames to FFmpeg
-def push_frames(frame_queue, process, frame_processors, source_image):
+def push_frames(frame_queue, processed_frame, frame_processors, source_image):
     while True:
         frame = frame_queue.get()
         if frame is None:
@@ -334,238 +335,11 @@ def push_frames(frame_queue, process, frame_processors, source_image):
     push_process.stdin.close()
     push_process.wait()
     
-def webcam_preview_1():
-    if modules.globals.source_path is None:
-        # No image selected
-        return
-    
-    global preview_label, PREVIEW
-
-    cap = cv2.VideoCapture(0)  # Use index for the webcam (adjust the index accordingly if necessary)    
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)  # Set the width of the resolution
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)  # Set the height of the resolution
-    cap.set(cv2.CAP_PROP_FPS, 60)  # Set the frame rate of the webcam
-    PREVIEW_MAX_WIDTH = 960
-    PREVIEW_MAX_HEIGHT = 540
-
-    preview_label.configure(image=None)  # Reset the preview image before startup
-
-    PREVIEW.deiconify()  # Open preview window
-
-    frame_processors = get_frame_processors_modules(modules.globals.frame_processors)
-
-    source_image = None  # Initialize variable for the selected face image
-
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        # Select and save face image only once
-        if source_image is None and modules.globals.source_path:
-            source_image = get_one_face(cv2.imread(modules.globals.source_path))
-
-        temp_frame = frame.copy()  #Create a copy of the frame
-
-        for frame_processor in frame_processors:
-            temp_frame = frame_processor.process_frame(source_image, temp_frame)
-
-        image = cv2.cvtColor(temp_frame, cv2.COLOR_BGR2RGB)  # Convert the image to RGB format to display it with Tkinter
-        image = Image.fromarray(image)
-        image = ImageOps.contain(image, (PREVIEW_MAX_WIDTH, PREVIEW_MAX_HEIGHT), Image.LANCZOS)
-        image = ctk.CTkImage(image, size=image.size)
-        preview_label.configure(image=image)
-        ROOT.update()
-
-    cap.release()
-    PREVIEW.withdraw()  # Close preview window when loop is finished
 
 
-def webcam_preview2():
-    if modules.globals.source_path is None:
-        # No image selected
-        return
-    
-    global preview_label, PREVIEW
-
-    cap = cv2.VideoCapture(0)  # Use index for the webcam (adjust the index accordingly if necessary) 
-    if not cap.isOpened():
-        print("无法打开摄像头")
-    else:
-        # 获取视频帧的宽度和高度
-        frame_width = int(cap.get(3))
-        frame_height = int(cap.get(4))
-    
-        print(f"视频帧大小: 宽度 = {frame_width}, 高度 = {frame_height}")
-    
-       
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)  # Set the width of the resolution
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)  # Set the height of the resolution
-    cap.set(cv2.CAP_PROP_FPS, 60)  # Set the frame rate of the webcam
-    PREVIEW_MAX_WIDTH = 960
-    PREVIEW_MAX_HEIGHT = 540
-
-    preview_label.configure(image=None)  # Reset the preview image before startup
-
-    PREVIEW.deiconify()  # Open preview window
-
-    frame_processors = get_frame_processors_modules(modules.globals.frame_processors)
-
-    source_image = None  # Initialize variable for the selected face image
-
-    while True:
-        start_time = time.time()
-        
-        ret, frame = cap.read()
-        
-        if not ret:
-            break
-        
-        end_time = time.time()
-        execution_time = end_time - start_time
-        print(f"cad read: {execution_time} s")
-        
-        # Select and save face image only once
-        if source_image is None and modules.globals.source_path:
-            source_image = get_one_face(cv2.imread(modules.globals.source_path))
-
-        temp_frame = frame.copy()  #Create a copy of the frame
-
-
-        start_time = time.time()
-        for frame_processor in frame_processors:
-            temp_frame = frame_processor.process_frame(source_image, temp_frame)
-        end_time = time.time()
-        execution_time = end_time - start_time
-        print(f"frame processor: {execution_time} s")
-        
-        image = cv2.cvtColor(temp_frame, cv2.COLOR_BGR2RGB)  # Convert the image to RGB format to display it with Tkinter
-        image = Image.fromarray(image)
-        image = ImageOps.contain(image, (PREVIEW_MAX_WIDTH, PREVIEW_MAX_HEIGHT), Image.LANCZOS)
-        image = ctk.CTkImage(image, size=image.size)
-        preview_label.configure(image=image)
-        ROOT.update()
-
-    cap.release()
-    PREVIEW.withdraw()  # Close preview window when loop is finished
-    
-
-def webcam_preview3():
-    if modules.globals.source_path is None:
-        # No image selected
-        return
-    global preview_label, PREVIEW
-    
-    cap = cv2.VideoCapture(input_rtmp_url)  # Use index for the webcam (adjust the index accordingly if necessary)    
-    if not cap.isOpened():
-        print("无法打开摄像头")
-    else:
-        # 获取视频帧的宽度和高度
-        frame_width = int(cap.get(3))
-        frame_height = int(cap.get(4))
-    
-        print(f"视频帧大小: 宽度 = {frame_width}, 高度 = {frame_height}")
-
-    # cap = cv2.VideoCapture(0)  # Use index for the webcam (adjust the index accordingly if necessary)    
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)  # Set the width of the resolution
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)  # Set the height of the resolution
-    cap.set(cv2.CAP_PROP_FPS, 30)  # Set the frame rate of the webcam
-    PREVIEW_MAX_WIDTH = 960
-    PREVIEW_MAX_HEIGHT = 540
-
-    preview_label.configure(image=None)  # Reset the preview image before startup
-
-    PREVIEW.deiconify()  # Open preview window
-
-    frame_processors = get_frame_processors_modules(modules.globals.frame_processors)
-
-    source_image = None  # Initialize variable for the selected face image
-
-    while True:
-        start_time = time.time()
-        
-        ret, frame = cap.read()
-        if not ret:
-            break
-        end_time = time.time()
-        execution_time = end_time - start_time
-        print(f"cad read processor: {execution_time} s")
-        
-        
-        # Select and save face image only once
-        if source_image is None and modules.globals.source_path:
-            source_image = get_one_face(cv2.imread(modules.globals.source_path))
-
-        temp_frame = frame.copy()  #Create a copy of the frame
-
-        start_time = time.time()
-        for frame_processor in frame_processors:
-            temp_frame = frame_processor.process_frame(source_image, temp_frame)
-
-        end_time = time.time()
-        execution_time = end_time - start_time
-        print(f"frame processor: {execution_time} s")
-
-        try:
-            start_time = time.time()
-
-            if temp_frame is not None:
-                push_process.stdin.write(temp_frame.tobytes())
-            
-            end_time = time.time()
-            execution_time = end_time - start_time
-            print(f"pull rtmp server processor: {execution_time} s") 
-        except BrokenPipeError as e:
-            print(e)
-            print("Broken pipe error occurred. Please check the RTMP server and connection.")
-    
-        # finally:
-        #     # Close the stdin to let FFmpeg know we are done
-        #     print("Close the stdin to let FFmpeg know we are done.")
-            
-        #     process.stdin.close()
-        #     process.wait()
-    
-        image = cv2.cvtColor(temp_frame, cv2.COLOR_BGR2RGB)  # Convert the image to RGB format to display it with Tkinter
-        image = Image.fromarray(image)
-        image = ImageOps.contain(image, (PREVIEW_MAX_WIDTH, PREVIEW_MAX_HEIGHT), Image.LANCZOS)
-        image = ctk.CTkImage(image, size=image.size)
-        preview_label.configure(image=image)
-        ROOT.update()
-
-    cap.release()
-    PREVIEW.withdraw()  # Close preview window when loop is finished
-
-
-def webcam_preview4():
-    if modules.globals.source_path is None:
-        return
-    
-    cap = cv2.VideoCapture(input_rtmp_url)
-    if not cap.isOpened():
-        print("无法打开视频流")
-        return
-    
-    # Initialize the frame processors and face image
-    frame_processors = get_frame_processors_modules(modules.globals.frame_processors)
-    source_image = get_one_face(cv2.imread(modules.globals.source_path)) if modules.globals.source_path else None
-
-    # Create a queue to hold frames
-    frame_queue = Queue(maxsize=10)
-
-    # Start threads for capturing and pushing frames
-    capture_thread = Thread(target=capture_frames, args=(cap, frame_queue))
-    push_thread = Thread(target=push_frames, args=(frame_queue, push_process, frame_processors, source_image))
-
-    capture_thread.start()
-    push_thread.start()
-
-    capture_thread.join()
-    frame_queue.put(None)
-    push_thread.join()
-
-# Example usage
 def webcam_preview():
+    global push_process
+    
     if modules.globals.source_path is None:
         return
     
@@ -580,6 +354,7 @@ def webcam_preview():
 
     # Frame buffer to store multiple frames
     frame_buffer = []
+    frame_count = 0
 
     while True:
         # Capture frames and add them to the buffer
@@ -587,6 +362,9 @@ def webcam_preview():
         if not ret:
             break
         frame_buffer.append(frame)
+        frame_count += 10
+        if frame_count % 3000 == 0:  # 每处理 1000 帧，释放资源并重新初始化
+            print("processing")
         
         # When buffer is full, process all frames in parallel
         if len(frame_buffer) >= 10:  # Adjust buffer size as needed
@@ -597,6 +375,16 @@ def webcam_preview():
 
             frame_buffer = []  # Clear buffer after processing
 
+            # frame_count += 10
+            # if frame_count % 1000 == 0:  # 每处理 1000 帧，释放资源并重新初始化
+            #     # cap.release()
+            #     push_process.stdin.close()
+            #     push_process.wait()
+
+            #     # cap = cv2.VideoCapture(input_rtmp_url)
+            #     push_process = subprocess.Popen(ffmpeg_command, stdin=subprocess.PIPE)
+            #     print("每处理 1000 帧，释放资源并重新初始化")
+
     # Process remaining frames in the buffer
     if frame_buffer:
         processed_frames = process_frames(frame_buffer, frame_processors, source_image)
@@ -606,4 +394,8 @@ def webcam_preview():
     cap.release()
     push_process.stdin.close()
     push_process.wait()
-    PREVIEW.withdraw()
+
+def start_webcam_preview():
+    # 创建一个新进程来运行 webcam_preview
+    p = Process(target=webcam_preview)
+    p.start()

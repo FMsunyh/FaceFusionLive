@@ -23,6 +23,7 @@ max_memory = None
 execution_providers: List[str] = []
 execution_threads = None
 headless = None
+webcam = None
 log_level = 'error'
 fp_ui: Dict[str, bool] = {}
 nsfw = None
