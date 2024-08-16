@@ -10,9 +10,20 @@ from modules.face_analyser import get_one_face, get_many_faces
 from modules.typing import Face, Frame
 from modules.utilities import conditional_download, resolve_relative_path, is_image, is_video
 
+from typing import List
+import onnxruntime
+
 FACE_SWAPPER = None
 THREAD_LOCK = threading.Lock()
 NAME = 'DLC.FACE-SWAPPER'
+
+def encode_execution_providers(execution_providers: List[str]) -> List[str]:
+    return [execution_provider.replace('ExecutionProvider', '').lower() for execution_provider in execution_providers]
+
+
+def decode_execution_providers(execution_providers: List[str]) -> List[str]:
+    return [provider for provider, encoded_execution_provider in zip(onnxruntime.get_available_providers(), encode_execution_providers(onnxruntime.get_available_providers()))
+            if any(execution_provider in encoded_execution_provider for execution_provider in execution_providers)]
 
 
 def pre_check() -> bool:
@@ -40,7 +51,8 @@ def get_face_swapper() -> Any:
     with THREAD_LOCK:
         if FACE_SWAPPER is None:
             model_path = resolve_relative_path('../models/inswapper_128_fp16.onnx')
-            FACE_SWAPPER = insightface.model_zoo.get_model(model_path, providers=modules.globals.execution_providers)
+            # FACE_SWAPPER = insightface.model_zoo.get_model(model_path, providers=modules.globals.execution_providers)
+            FACE_SWAPPER = insightface.model_zoo.get_model(model_path,  providers=decode_execution_providers(["cuda"]))
     return FACE_SWAPPER
 
 
