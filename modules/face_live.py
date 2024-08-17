@@ -327,7 +327,7 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
     stop_event = threading.Event()
 
     # Start the frame capture thread
-    frame_capture_thread = FrameCaptureThread(cap, frame_queue, stop_event, buffer_size=5)
+    frame_capture_thread = FrameCaptureThread(cap, frame_queue, stop_event, buffer_size=3)
     frame_capture_thread.start()
 
    # Create and start processing thread

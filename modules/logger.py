@@ -22,5 +22,5 @@ logging.basicConfig(
 )
 
 # Example usage
-logger = logging.getLogger()
+logger = logging.getLogger('Face_Live')
 logger.info("This is a log message.")
