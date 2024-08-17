@@ -272,7 +272,7 @@ def start_ffmpeg_process(width, height, fps, input_rtmp_url, output_rtmp_url):
     '-preset', 'fast',
     '-f', 'flv',
     '-flvflags', 'no_duration_filesize',
-    # '-fps_mode', 'vfr',  # Replace -vsync with -fps_mod
+    '-fps_mode', 'vfr',  # Replace -vsync with -fps_mod
     '-async', '1',        # Ensure audio sync
     '-shortest',          # Stop encoding when the shortest stream ends
     '-max_interleave_delta', '100M',
