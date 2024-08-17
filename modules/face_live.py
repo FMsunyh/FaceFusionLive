@@ -88,6 +88,13 @@ class RuntimeMonitorThread(threading.Thread):
         self.start_time = start_time
         self.interval = interval
         self._stop_event = stop_event
+        
+        # Log the properties when initializing the thread
+        logger.info(
+            f"Initialized FrameCaptureThread: "
+            f"Thread Name: {self.name}, "
+            f"Interval: {self.interval} "
+        )
 
     def run(self):
         while not self._stop_event.is_set():
@@ -107,10 +114,10 @@ class RuntimeMonitorThread(threading.Thread):
 
 
 class FrameCaptureThread(threading.Thread):
-    def __init__(self, cap, frame_queue, stop_event, buffer_size=10, max_retries=3):
+    def __init__(self, cap, queue, stop_event, buffer_size=10, max_retries=3):
         super().__init__()
         self.cap = cap
-        self.frame_queue = frame_queue
+        self.queue = queue
         self._stop_event = stop_event
         self.buffer_size = buffer_size
         self.max_retries = max_retries
@@ -119,9 +126,8 @@ class FrameCaptureThread(threading.Thread):
         logger.info(
             f"Initialized FrameCaptureThread: "
             f"Thread Name: {self.name}, "
-            f"Queue Size: {self.frame_queue.qsize()}, "
-            f"Max Workers: {self.max_workers}"
-            f"Buffer Size: {self.buffer_size}"
+            f"Queue Size: {self.queue.qsize()}, "
+            f"Buffer Size: {self.buffer_size}, "
             f"Max Retries: {self.max_retries}"
         )
 
@@ -129,7 +135,7 @@ class FrameCaptureThread(threading.Thread):
         retry_count = 0
         while not self._stop_event.is_set() and retry_count < self.max_retries:
             try:
-                if self.frame_queue.qsize() < self.buffer_size:
+                if self.queue.qsize() < self.buffer_size:
                     ret, frame = self.cap.read()
                     if not ret:
                         retry_count += 1
@@ -137,7 +143,7 @@ class FrameCaptureThread(threading.Thread):
                         time.sleep(1)  # Wait before retrying
                     else:
                         retry_count = 0  # Reset retry count on successful read
-                        self.frame_queue.put(frame)
+                        self.queue.put(frame)
                 else:
                     time.sleep(0.01)  # Avoid busy-waiting when the buffer is full
 
@@ -158,6 +164,13 @@ class HeartbeatThread(threading.Thread):
         super().__init__()
         self.interval = interval
         self._stop_event = stop_event
+                
+        # Log the properties when initializing the thread
+        logger.info(
+            f"Initialized FrameProcessorThread: "
+            f"Thread Name: {self.name}, "
+            f"Interval: {self.interval} "
+        )
 
     def run(self):
         while not self._stop_event.is_set():
