@@ -83,13 +83,13 @@ def start_ffmpeg_process(width, height, fps,input_rtmp_url, output_rtmp_url):
         '-preset', 'fast',  # NVENC 提供了一些预设选项，"fast" 比 "ultrafast" 更高效
         '-f', 'flv',  # Output format
         '-flvflags', 'no_duration_filesize',
+        '-loglevel', 'quiet',
         output_rtmp_url
     ]
     
     process = subprocess.Popen(ffmpeg_command, 
-                               stderr=subprocess.PIPE,  # 捕获stderr输出
-                               stdin=subprocess.PIPE,
-                               text=True)
+                            #    stderr=subprocess.PIPE,  # 捕获stderr输出
+                               stdin=subprocess.PIPE)
     logging.info(f"启动FFmpeg推流至：{output_rtmp_url}")
     return process
 
@@ -194,9 +194,9 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
             exit_code = process.poll()
             if exit_code != 0:
                 # 捕获并记录FFmpeg的错误信息
-                ffmpeg_error = process.stderr.read()
+                # ffmpeg_error = process.stderr.read()
                 logging.error(f"FFmpeg进程异常退出，退出码：{exit_code}")
-                logging.error(f"FFmpeg错误信息：{ffmpeg_error}")
+                # logging.error(f"FFmpeg错误信息：{ffmpeg_error}")
             else:
                 logging.info("FFmpeg进程已正常退出")
             break
@@ -209,9 +209,10 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
         #     logging.warning("假设异常退出")
         #     break
 
-def stream_worker(input_rtmp_url, output_rtmp_url, face_source_path, frame_processors, restart_interval=5):
+def stream_worker(input_rtmp_url, output_rtmp_url, face_source_path, frame_processors, restart_interval=5, max_retries=5):
     """RTMP流处理工作进程，包含重试机制"""
-    while True:
+    retry_count = 0
+    while retry_count < max_retries:
         try:
             logging.info(f"开始处理流：{input_rtmp_url}")
             cap = open_input_stream(input_rtmp_url)
@@ -221,14 +222,22 @@ def stream_worker(input_rtmp_url, output_rtmp_url, face_source_path, frame_proce
             
             process = start_ffmpeg_process(width, height, fps, input_rtmp_url, output_rtmp_url)
             handle_streaming(cap, process, face_source_path, frame_processors)
-            logging.info(f"处理结束")
 
+        except cv2.error as cv_err:
+            logging.exception(f"OpenCV 错误：{cv_err}")
+        except IOError as io_err:
+            logging.exception(f"IO 错误：{io_err}")
         except Exception as e:
-            logging.exception(f"处理流时发生错误：{e}")
+            logging.exception(f"处理流时发生未知错误：{e}")
         finally:
-            cleanup_resources(cap, process)
+            if 'cap' in locals():
+                cleanup_resources(cap, process)
             logging.info(f"等待 {restart_interval} 秒后重试...")
             time.sleep(restart_interval)
+            retry_count += 1
+
+    if retry_count >= max_retries:
+        logging.error(f"达到最大重试次数，停止处理流,退出子进程：{input_rtmp_url}")
 
 def manage_streams(streams):
     """管理多个RTMP流，每个流使用一个独立的进程"""
