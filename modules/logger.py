@@ -22,7 +22,8 @@ class LoggerWrapper:
         os.makedirs(log_dir, exist_ok=True)
 
         # Generate a filename based on the current date and time
-        log_filename = datetime.now().strftime('%Y-%m-%d_%H-%M-%S') + '.log'
+        # log_filename = datetime.now().strftime('%Y-%m-%d_%H-%M-%S') + '.log'
+        log_filename = 'app.log'
         log_filepath = os.path.join(log_dir, log_filename)
 
         # Set up logging configuration
