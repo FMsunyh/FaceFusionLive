@@ -9,267 +9,331 @@ import modules.metadata
 from modules.face_analyser import get_one_face
 from modules.processors.frame.core import get_frame_processors_modules
 import multiprocessing
+import threading
+import queue
 
-# 配置日志记录
-# logging.basicConfig(filename='live_streaming.log', level=logging.INFO,
-#                     format='%(asctime)s - %(levelname)s - %(message)s')
-
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(processName)s: %(message)s',
+    format='%(asctime)s [%(levelname)s] %(threadName)s: %(message)s',
     handlers=[
         logging.FileHandler("face_live.log"),
         logging.StreamHandler()
     ]
 )
 
-# # 定义RTMP服务器的输入输出URL
-# input_rtmp_url = 'rtmp://120.241.153.43:1935/live111'
-# output_rtmp_url = "rtmp://120.241.153.43:1935/live"
-# frame_width = 1280
-# frame_height = 720
-# fps = 30
+class RuntimeMonitorThread(threading.Thread):
+    def __init__(self, start_time, stop_event, interval=60):
+        super().__init__()
+        self.start_time = start_time
+        self.interval = interval
+        self._stop_event = stop_event
 
-def measure_runtime(start_time):
-    """
-    记录程序的运行时长，并以小时、分钟、秒的格式输出。
-    """
-    # 记录结束时间
-    end_time = time.time()
+    def run(self):
+        while not self._stop_event.is_set():
+            self.measure_runtime(self.start_time)
+            time.sleep(self.interval)
 
-    # 计算运行时长
-    elapsed_time = end_time - start_time
+    def measure_runtime(self, start_time):
+        """Record the program's runtime and output in hours, minutes, and seconds."""
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        hours, remainder = divmod(elapsed_time, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        logging.info(f"Program runtime: {int(hours)} hours {int(minutes)} minutes {seconds:.2f} seconds")
 
-    # 将秒数转换为时分秒
-    hours, remainder = divmod(elapsed_time, 3600)
-    minutes, seconds = divmod(remainder, 60)
+    def stop(self):
+        self._stop_event.set()
 
-    logging.info(f"程序运行时长: {int(hours)} 小时 {int(minutes)} 分钟 {seconds:.2f} 秒")
+class FrameCaptureThread(threading.Thread):
+    def __init__(self, cap, frame_queue, stop_event, buffer_size=10, max_retries=5):
+        super().__init__()
+        self.cap = cap
+        self.frame_queue = frame_queue
+        self._stop_event = stop_event
+        self.buffer_size = buffer_size
+        self.max_retries = max_retries
 
-def process_single_frame(frame, frame_processors, source_image):
-    for frame_processor in frame_processors:
-        frame = frame_processor.process_frame(source_image, frame)
-    return frame
+    def run(self):
+        retry_count = 0
+        while not self._stop_event.is_set() and retry_count < self.max_retries:
+            try:
+                if self.frame_queue.qsize() < self.buffer_size:
+                    ret, frame = self.cap.read()
+                    if not ret:
+                        retry_count += 1
+                        logging.error(f"Failed to read frame, retrying... (attempt {retry_count})")
+                        time.sleep(1)  # Wait before retrying
+                    else:
+                        retry_count = 0  # Reset retry count on successful read
+                        self.frame_queue.put(frame)
+                else:
+                    time.sleep(0.01)  # Avoid busy-waiting when the buffer is full
 
-def process_frames(frames, frame_processors, source_image):
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        processed_frames = list(executor.map(
-            process_single_frame, frames, 
-            [frame_processors]*len(frames), 
-            [source_image]*len(frames)
-        ))
-    return processed_frames
+            except Exception as e:
+                logging.error(f"Error in FrameCaptureThread: {e}")
+                retry_count += 1
+                time.sleep(1)  # Wait before retrying
+
+        if retry_count >= self.max_retries:
+            logging.error("Maximum retries reached for reading frames. Stopping thread.")
+
+    def stop(self):
+        self._stop_event.set()
 
 
-def start_ffmpeg_process(width, height, fps,input_rtmp_url, output_rtmp_url):
-    """启动FFmpeg进程，用于推送处理后的视频流"""
-    # Define the FFmpeg command to send the video stream
+
+class HeartbeatThread(threading.Thread):
+    def __init__(self, stop_event, interval=60):
+        super().__init__()
+        self.interval = interval
+        self._stop_event = stop_event
+
+    def run(self):
+        while not self._stop_event.is_set():
+            logging.info("Heartbeat: Program is running normally")
+            time.sleep(self.interval)
+
+    def stop(self):
+        self._stop_event.set()
+
+
+class FrameProcessorThread(threading.Thread):
+    def __init__(self, queue, frame_processors, source_image, process, stop_event, max_workers=12):
+        super().__init__()
+        self.queue = queue
+        self.frame_processors = frame_processors
+        self.source_image = source_image
+        self.process = process
+        self._stop_event = stop_event
+        self.max_workers = max_workers
+
+    def run(self):
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = []
+            while not self._stop_event.is_set() or not self.queue.empty():
+                try:
+                    frame = self.queue.get(timeout=1)
+                    future = executor.submit(self.process_single_frame, frame)
+                    futures.append(future)
+
+                    if len(futures) > self.max_workers:
+                        for future in futures:
+                            processed_frame = future.result()
+                            if not self.push_stream_with_retry(processed_frame):
+                                logging.error("Streaming failed, unable to recover, stop frame-processor-thread")
+                                self._stop_event.set()
+                                break
+                        futures.clear()
+
+                except queue.Empty:
+                    continue
+
+    def process_single_frame(self, frame):
+        for frame_processor in self.frame_processors:
+            frame = frame_processor.process_frame(self.source_image, frame)
+        return frame
+
+    def push_stream_with_retry(self, frame, retry_count=3):
+        """Push the frame to FFmpeg with retry mechanism."""
+        for attempt in range(retry_count):
+            try:
+                self.process.stdin.write(frame.tobytes())
+                return True
+            except BrokenPipeError:
+                logging.error(f"Streaming failed, retrying... (attempt {attempt + 1})")
+                time.sleep(1)
+                if attempt == retry_count - 1:
+                    return False
+            except Exception as e:
+                logging.error(f"Error writing to FFmpeg: {e}")
+                time.sleep(1)
+                if attempt == retry_count - 1:
+                    return False
+        return False
+    
+    def stop(self):
+        self._stop_event.set()
+
+def start_ffmpeg_process(width, height, fps, input_rtmp_url, output_rtmp_url):
+    """Start the FFmpeg process for streaming."""
     ffmpeg_command = [
         'ffmpeg',
-        # '-hide_banner',  # 隐藏FFmpeg版本和版权信息
-        '-y',  # Overwrite output files without asking
-        '-f', 'rawvideo',  # Input format
+        '-y',
+        '-f', 'rawvideo',
         '-vcodec', 'rawvideo',
-        '-pix_fmt', 'bgr24',  # Pixel format (OpenCV uses BGR by default)
-        '-s', f'{width}x{height}',  # Frame size
-        '-r', str(fps),  # Frame rate
-        '-i', '-',  # Input from stdin
-        '-i', input_rtmp_url,  # 来自RTMP流的音频输入
-        # '-c:v', 'libx264',  # Video codec
-        '-c:v', 'h264_nvenc',  # 使用 NVENC 进行视频编码
-        '-c:a', 'copy', # 音频编码器（直接复制音频，不重新编码）
-        '-pix_fmt', 'yuv420p',  # Pixel format for output
-        # '-preset', 'ultrafast',  # Encoding speed
-        '-preset', 'fast',  # NVENC 提供了一些预设选项，"fast" 比 "ultrafast" 更高效
-        '-f', 'flv',  # Output format
+        '-pix_fmt', 'bgr24',
+        '-s', f'{width}x{height}',
+        '-r', str(fps),
+        '-i', '-',
+        '-i', input_rtmp_url,
+        '-c:v', 'h264_nvenc',  # Use Nvidia GPU for encoding
+        '-c:a', 'copy',
+        '-pix_fmt', 'yuv420p',
+        '-preset', 'fast',
+        '-f', 'flv',
         '-flvflags', 'no_duration_filesize',
-        '-loglevel', 'quiet',
+        # '-loglevel', 'quiet',
         output_rtmp_url
     ]
-    
-    process = subprocess.Popen(ffmpeg_command, 
-                            #    stderr=subprocess.PIPE,  # 捕获stderr输出
-                               stdin=subprocess.PIPE)
-    logging.info(f"启动FFmpeg推流至：{output_rtmp_url}")
+    process = subprocess.Popen(ffmpeg_command, stdin=subprocess.PIPE)
+    logging.info(f"Started FFmpeg streaming to: {output_rtmp_url}")
     return process
 
 def open_input_stream(input_rtmp_url):
-    """打开输入RTMP流"""
+    """Open the input RTMP stream."""
     cap = cv2.VideoCapture(input_rtmp_url)
     if not cap.isOpened():
-        raise RuntimeError(f"无法打开输入流：{input_rtmp_url}")
+        raise RuntimeError(f"Cannot open input stream: {input_rtmp_url}")
     return cap
 
-
-def push_stream_with_retry(process, frame, retry_count=3):
-    """推流并在失败时重试"""
-    for attempt in range(retry_count):
-        try:
-            process.stdin.write(frame.tobytes())
-            return True
-        except BrokenPipeError:
-            logging.error(f"推流失败，正在重试...（第 {attempt+1} 次）")
-            time.sleep(1)  # 等待一段时间后重试
-            if attempt == retry_count - 1:
-                return False
-        except Exception as e:
-            logging.error(f"写入FFmpeg时发生错误: {e}")
-            retry_count += 1
-            logging.error(f"推流失败，正在重试...（第 {attempt+1} 次）")
-            time.sleep(1)
-            if attempt == retry_count - 1:
-                return False
-    return False
-
 def cleanup_resources(cap, process):
-    """清理资源，关闭视频流和FFmpeg进程"""
+    """Release resources, close video stream and FFmpeg process."""
     try:
         if cap.isOpened():
             cap.release()
-            logging.info("视频流已释放")
+            logging.info("Video stream released")
     except Exception as e:
-        logging.warning(f"释放视频流时发生异常：{e}")
-    
+        logging.warning(f"Exception while releasing video stream: {e}")
+
     try:
         if process.stdin:
             process.stdin.close()
-            logging.info("FFmpeg stdin 已关闭")
+            logging.info("FFmpeg stdin closed")
     except Exception as e:
-        logging.warning(f"关闭FFmpeg stdin时发生异常：{e}")
-    
+        logging.warning(f"Exception while closing FFmpeg stdin: {e}")
+
     try:
-        # 尝试正常等待进程结束
         process.wait(timeout=5)
-        logging.info("FFmpeg进程已正常结束")
+        logging.info("FFmpeg process ended normally")
     except subprocess.TimeoutExpired:
-        logging.warning("等待FFmpeg进程结束超时，尝试强制终止")
+        logging.warning("Timeout waiting for FFmpeg process to end, trying to terminate")
         try:
             process.terminate()
             process.wait(timeout=5)
-            logging.info("FFmpeg进程已被强制终止")
+            logging.info("FFmpeg process terminated")
         except Exception as e:
-            logging.error(f"强制终止FFmpeg进程时发生异常：{e}")
-    except Exception as e:
-        logging.warning(f"等待FFmpeg进程结束时发生异常：{e}")
+            logging.error(f"Exception while terminating FFmpeg process: {e}")
 
-    logging.info("已释放全部资源")
+    logging.info("All resources released")
+
 
 def handle_streaming(cap, process, face_source_path, frame_processors):
-    """处理视频流，从输入捕获帧，处理后通过FFmpeg推流"""
-
-    logging.info(f"人脸: {face_source_path}")
+    """Handle video streaming, capture, process frames, and push through FFmpeg."""
+    logging.info(f"Face source: {face_source_path}")
     frame_processors = get_frame_processors_modules(frame_processors)
-
     source_image = get_one_face(cv2.imread(face_source_path))
 
-    frame_buffer = []
-    frame_count = 0
-    exception_count = 0
-    start_time = time.time()
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            logging.error("读取帧失败，尝试重新连接..., sleep 1, break")
-            time.sleep(1)
-            break
+    frame_queue = queue.Queue(maxsize=300)
+    stop_event = threading.Event()
 
-        frame_buffer.append(frame)
-        frame_count += 1
-        exception_count += 1
-        # 处理并推送帧
-        if len(frame_buffer) >= 10:
-            processed_frames = process_frames(frame_buffer, frame_processors, source_image)
-            for processed_frame in processed_frames:
-                if not push_stream_with_retry(process, processed_frame):
-                    logging.error("推流失败，无法恢复")
-                    break
-            frame_buffer = []
+    # Start the frame capture thread
+    frame_capture_thread = FrameCaptureThread(cap, frame_queue, stop_event)
+    frame_capture_thread.start()
 
-        if frame_count % 3000 == 0:
-            frame_count = 0
-            measure_runtime(start_time)
-            logging.info("心跳正常...")
+   # Create and start processing thread
+    frame_processor_thread = FrameProcessorThread(
+        queue=frame_queue, 
+        frame_processors=frame_processors, 
+        source_image=source_image,
+        process=process,
+        stop_event=stop_event
+    )
+    frame_processor_thread.start()
 
-        if process.poll() is not None:
-            exit_code = process.poll()
-            if exit_code != 0:
-                # 捕获并记录FFmpeg的错误信息
-                # ffmpeg_error = process.stderr.read()
-                logging.error(f"FFmpeg进程异常退出，退出码：{exit_code}")
-                # logging.error(f"FFmpeg错误信息：{ffmpeg_error}")
-            else:
-                logging.info("FFmpeg进程已正常退出")
-            break
+    heartbeat_thread = HeartbeatThread(stop_event, interval=60)
+    heartbeat_thread.start()
 
-        # if time.time() - last_frame_time > 10:
-        #     logging.warning("超过10秒未接收到新帧")
-        #     break
-        # if exception_count % 300000 == 0:
-        #     exception_count = 0
-        #     logging.warning("假设异常退出")
-        #     break
+    runtime_monitor_thread = RuntimeMonitorThread(start_time=time.time(), stop_event=stop_event, interval=360)
+    runtime_monitor_thread.start()
+
+    try:
+        while True:
+            if process.poll() is not None:
+                exit_code = process.poll()
+                if exit_code != 0:
+                    logging.error(f"FFmpeg process exited abnormally, exit code: {exit_code}")
+                else:
+                    logging.info("FFmpeg process exited normally")
+                break
+            
+            if not frame_capture_thread.is_alive() or not frame_processor_thread.is_alive() or not heartbeat_thread.is_alive() or not runtime_monitor_thread.is_alive():
+                logging.error("One or more threads have exited abnormally.")
+                stop_event.set()
+                break
+
+    except Exception as e:
+        logging.error(f"Error in streaming: {e}")
+
+    finally:
+        stop_event.set()
+        frame_processor_thread.join()
+        frame_capture_thread.join()
+        heartbeat_thread.join()
+        runtime_monitor_thread.join()
+        cleanup_resources(cap, process)
 
 def stream_worker(input_rtmp_url, output_rtmp_url, face_source_path, frame_processors, restart_interval=5, max_retries=5):
-    """RTMP流处理工作进程，包含重试机制"""
+    """RTMP stream worker with retry mechanism."""
     retry_count = 0
     while retry_count < max_retries:
         try:
-            logging.info(f"开始处理流：{input_rtmp_url}")
+            logging.info(f"Starting stream: {input_rtmp_url}")
             cap = open_input_stream(input_rtmp_url)
             width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            fps = cap.get(cv2.CAP_PROP_FPS) or 25  # 默认帧率为25
+            fps = cap.get(cv2.CAP_PROP_FPS) or 25  # Default to 25 fps if unknown
             
             process = start_ffmpeg_process(width, height, fps, input_rtmp_url, output_rtmp_url)
             handle_streaming(cap, process, face_source_path, frame_processors)
 
         except cv2.error as cv_err:
-            logging.exception(f"OpenCV 错误：{cv_err}")
+            logging.exception(f"OpenCV error: {cv_err}")
         except IOError as io_err:
-            logging.exception(f"IO 错误：{io_err}")
+            logging.exception(f"IO error: {io_err}")
         except Exception as e:
-            logging.exception(f"处理流时发生未知错误：{e}")
+            logging.exception(f"Unknown error during stream processing: {e}")
         finally:
             if 'cap' in locals():
                 cleanup_resources(cap, process)
-            logging.info(f"等待 {restart_interval} 秒后重试...")
+            logging.info(f"Waiting {restart_interval} seconds before retrying...")
             time.sleep(restart_interval)
             retry_count += 1
 
     if retry_count >= max_retries:
-        logging.error(f"达到最大重试次数，停止处理流,退出子进程：{input_rtmp_url}")
+        logging.error(f"Reached maximum retries, stopping stream: {input_rtmp_url}")
 
 def manage_streams(streams):
-    """管理多个RTMP流，每个流使用一个独立的进程"""
+    """Manage multiple RTMP streams, each in a separate process."""
     processes = []
-    
-    for input_url, output_url , face_source_path, frame_processors in streams:
-        p = multiprocessing.Process(target=stream_worker, args=(input_url, output_url, face_source_path, frame_processors))
+
+    def start_stream_process(stream_info):
+        input_url, output_url, face_source_path, frame_processors = stream_info
+        p = Process(target=stream_worker, args=(input_url, output_url, face_source_path, frame_processors))
         p.daemon = True
         p.start()
+        return p
+
+    for stream_info in streams:
+        p = start_stream_process(stream_info)
         processes.append(p)
-        logging.info(f"已启动进程 {p.name} 处理流：{input_url} -> {output_url}")
+        logging.info(f"========================================Started========================================")
+        logging.info(f"Started process {p.name} handling stream: {stream_info[0]} -> {stream_info[1]}")
     
     try:
         while True:
             for i, p in enumerate(processes):
                 if not p.is_alive():
-                    logging.warning(f"检测到进程 {p.name} 已退出，正在重启...")
-                    input_url, output_url, face_source_path, frame_processors = streams[i]
-                    new_p = multiprocessing.Process(target=stream_worker, args=(input_url, output_url, face_source_path, frame_processors))
-                    new_p.daemon = True
-                    new_p.start()
-                    processes[i] = new_p
-                    logging.info(f"已重启进程 {new_p.name} 处理流：{input_url} -> {output_url}")
+                    logging.error(f"Process {p.name} has stopped, restarting...")
+                    processes[i] = start_stream_process(streams[i])
             time.sleep(5)
-            
     except KeyboardInterrupt:
-        logging.info("检测到中断信号，正在关闭所有进程...")
+        logging.info("Termination signal received, shutting down...")
         for p in processes:
             p.terminate()
+        for p in processes:
             p.join()
-        logging.info("所有进程已关闭。程序退出。")
-
+        logging.info("All processes closed. Program exiting.")
 
 def webcam():
     frame_processors = modules.globals.frame_processors
@@ -277,3 +341,6 @@ def webcam():
         ('rtmp://120.241.153.43:1935/live111', 'rtmp://120.241.153.43:1935/live', modules.globals.source_path, frame_processors),
     ]
     manage_streams(streams)
+
+if __name__ == "__main__":
+    webcam()
