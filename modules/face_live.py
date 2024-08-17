@@ -171,7 +171,7 @@ def start_ffmpeg_process(width, height, fps, input_rtmp_url, output_rtmp_url):
     '-max_interleave_delta', '100M',
     '-probesize', '100M',
     '-analyzeduration', '100M',
-    '-loglevel', 'debug', # Debugging level
+    # '-loglevel', 'debug', # Debugging level
     output_rtmp_url
 ]
 
