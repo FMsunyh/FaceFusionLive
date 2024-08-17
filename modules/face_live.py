@@ -146,8 +146,8 @@ class FrameCaptureThread(threading.Thread):
                         time.sleep(1)  # Wait before retrying
                     else:
                         retry_count = 0  # Reset retry count on successful read
-                        with self.resource_lock:
-                            self.queue.put(frame)
+                        # with self.resource_lock:
+                        self.queue.put(frame)
                 else:
                     time.sleep(0.01)  # Avoid busy-waiting when the buffer is full
 
@@ -209,8 +209,8 @@ class FrameProcessorThread(threading.Thread):
             futures = []
             while not self._stop_event.is_set() or not self.queue.empty():
                 try:
-                    with self.resource_lock:
-                        frame = self.queue.get(timeout=1)
+                    # with self.resource_lock:
+                    frame = self.queue.get(timeout=1)
                     future = executor.submit(self.process_single_frame, frame)
                     futures.append(future)
 
@@ -235,8 +235,8 @@ class FrameProcessorThread(threading.Thread):
         """Push the frame to FFmpeg with retry mechanism."""
         for attempt in range(retry_count):
             try:
-                with self.resource_lock:
-                    self.process.stdin.write(frame.tobytes())
+                # with self.resource_lock:
+                self.process.stdin.write(frame.tobytes())
                 return True
             except BrokenPipeError:
                 logger.error(f"Push Streaming failed, retrying... (attempt {attempt + 1})")
