@@ -327,7 +327,7 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
     stop_event = threading.Event()
 
     # Start the frame capture thread
-    frame_capture_thread = FrameCaptureThread(cap, frame_queue, stop_event, buffer_size=3)
+    frame_capture_thread = FrameCaptureThread(cap, frame_queue, stop_event, buffer_size=2)
     frame_capture_thread.start()
 
    # Create and start processing thread
@@ -448,5 +448,5 @@ def webcam():
     ]
     manage_streams(streams)
 
-if __name__ == "__main__":
-    webcam()
+# if __name__ == "__main__":
+#     webcam()
