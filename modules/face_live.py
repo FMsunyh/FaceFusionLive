@@ -53,7 +53,7 @@ class RTMPMonitorThread(threading.Thread):
     def stop(self):
         self._stop_event.set()
 
-        
+
 class NetworkMonitorThread(threading.Thread):
     def __init__(self, stop_event, interval=5, check_host="8.8.8.8"):
         super().__init__()
@@ -201,7 +201,7 @@ class FrameProcessorThread(threading.Thread):
                 self.process.stdin.write(frame.tobytes())
                 return True
             except BrokenPipeError:
-                logger.error(f"Streaming failed, retrying... (attempt {attempt + 1})")
+                logger.error(f"Push Streaming failed, retrying... (attempt {attempt + 1})")
                 time.sleep(1)
                 if attempt == retry_count - 1:
                     return False
@@ -296,7 +296,7 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
     stop_event = threading.Event()
 
     # Start the frame capture thread
-    frame_capture_thread = FrameCaptureThread(cap, frame_queue, stop_event, buffer_size=10)
+    frame_capture_thread = FrameCaptureThread(cap, frame_queue, stop_event, buffer_size=1)
     frame_capture_thread.start()
 
    # Create and start processing thread
