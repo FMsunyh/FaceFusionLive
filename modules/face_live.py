@@ -185,7 +185,7 @@ class FrameProcessorThread(threading.Thread):
             f"Queue Size: {self.queue.qsize()}, "
             f"Max Workers: {self.max_workers}"
         )
-        
+
     def run(self):
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = []
@@ -314,7 +314,7 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
     stop_event = threading.Event()
 
     # Start the frame capture thread
-    frame_capture_thread = FrameCaptureThread(cap, frame_queue, stop_event, buffer_size=1)
+    frame_capture_thread = FrameCaptureThread(cap, frame_queue, stop_event, buffer_size=10)
     frame_capture_thread.start()
 
    # Create and start processing thread
