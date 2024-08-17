@@ -338,7 +338,7 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
         cap, 
         frame_queue, 
         stop_event, 
-        buffer_size=3,
+        buffer_size=1,
         resource_lock=resource_lock
         )
     frame_capture_thread.start()
