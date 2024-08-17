@@ -105,6 +105,7 @@ class RuntimeMonitorThread(threading.Thread):
     def stop(self):
         self._stop_event.set()
 
+
 class FrameCaptureThread(threading.Thread):
     def __init__(self, cap, frame_queue, stop_event, buffer_size=10, max_retries=3):
         super().__init__()
@@ -113,6 +114,16 @@ class FrameCaptureThread(threading.Thread):
         self._stop_event = stop_event
         self.buffer_size = buffer_size
         self.max_retries = max_retries
+
+        # Log the properties when initializing the thread
+        logger.info(
+            f"Initialized FrameCaptureThread: "
+            f"Thread Name: {self.name}, "
+            f"Queue Size: {self.frame_queue.qsize()}, "
+            f"Max Workers: {self.max_workers}"
+            f"Buffer Size: {self.buffer_size}"
+            f"Max Retries: {self.max_retries}"
+        )
 
     def run(self):
         retry_count = 0
@@ -142,7 +153,6 @@ class FrameCaptureThread(threading.Thread):
         self._stop_event.set()
 
 
-
 class HeartbeatThread(threading.Thread):
     def __init__(self, stop_event, interval=60):
         super().__init__()
@@ -167,7 +177,15 @@ class FrameProcessorThread(threading.Thread):
         self.process = process
         self._stop_event = stop_event
         self.max_workers = max_workers
-
+        
+        # Log the properties when initializing the thread
+        logger.info(
+            f"Initialized FrameProcessorThread: "
+            f"Thread Name: {self.name}, "
+            f"Queue Size: {self.queue.qsize()}, "
+            f"Max Workers: {self.max_workers}"
+        )
+        
     def run(self):
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = []
