@@ -11,6 +11,75 @@ from modules.processors.frame.core import get_frame_processors_modules
 import multiprocessing
 import threading
 import queue
+import socket
+
+class RTMPMonitorThread(threading.Thread):
+    def __init__(self, rtmp_url, stop_event, interval=5):
+        super().__init__()
+        self.rtmp_url = rtmp_url
+        self.interval = interval
+        self._stop_event = stop_event
+        self.network_available = True
+
+    def run(self):
+        while not self._stop_event.is_set():
+            self.network_available = self.is_rtmp_available(self.rtmp_url)
+            if not self.network_available:
+                logger.warning(f"RTMP 服务器不可用: {self.rtmp_url}")
+            time.sleep(self.interval)
+
+    def is_rtmp_available(self, rtmp_url):
+        """检查 RTMP 服务器是否可用"""
+        try:
+            # 从 RTMP URL 中提取主机和端口
+            host, port = self.parse_rtmp_url(rtmp_url)
+            socket.setdefaulttimeout(3)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.connect((host, port))
+            sock.close()
+            return True
+        except socket.error as e:
+            logger.error(f"RTMP 连接失败: {e}")
+            return False
+
+    def parse_rtmp_url(self, rtmp_url):
+        """从 RTMP URL 中解析出主机和端口"""
+        url_parts = rtmp_url.replace("rtmp://", "").split("/")
+        host_port = url_parts[0].split(":")
+        host = host_port[0]
+        port = int(host_port[1]) if len(host_port) > 1 else 1935  # 默认端口为 1935
+        return host, port
+
+    def stop(self):
+        self._stop_event.set()
+
+        
+class NetworkMonitorThread(threading.Thread):
+    def __init__(self, stop_event, interval=5, check_host="8.8.8.8"):
+        super().__init__()
+        self.interval = interval
+        self.check_host = check_host
+        self._stop_event = stop_event
+        self.network_available = True
+
+    def run(self):
+        while not self._stop_event.is_set():
+            self.network_available = self.is_network_available()
+            if not self.network_available:
+                logger.warning("网络不可用，等待恢复...")
+            time.sleep(self.interval)
+
+    def is_network_available(self):
+        """检查网络是否可用"""
+        try:
+            socket.setdefaulttimeout(3)
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((self.check_host, 53))
+            return True
+        except socket.error:
+            return False
+
+    def stop(self):
+        self._stop_event.set()
 
 
 class RuntimeMonitorThread(threading.Thread):
@@ -246,6 +315,12 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
     runtime_monitor_thread = RuntimeMonitorThread(start_time=time.time(), stop_event=stop_event, interval=360)
     runtime_monitor_thread.start()
 
+    # network_monitor_thread = NetworkMonitorThread(stop_event=stop_event, interval=5, check_host="rtmp://120.241.153.43")
+    # network_monitor_thread.start()
+
+    rtmp_monitor_thread = RTMPMonitorThread(rtmp_url='rtmp://120.241.153.43:1935', stop_event=stop_event, interval=5)
+    rtmp_monitor_thread.start()
+
     try:
         while True:
             if process.poll() is not None:
@@ -270,6 +345,7 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
         frame_capture_thread.join()
         heartbeat_thread.join()
         runtime_monitor_thread.join()
+        rtmp_monitor_thread.join()
         cleanup_resources(cap, process)
 
 def stream_worker(input_rtmp_url, output_rtmp_url, face_source_path, frame_processors, restart_interval=3, max_retries=3):
