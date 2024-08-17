@@ -13,6 +13,8 @@ import threading
 import queue
 import socket
 
+resource_lock = threading.Lock()
+
 class RTMPMonitorThread(threading.Thread):
     def __init__(self, rtmp_url, stop_event, interval=5):
         super().__init__()
@@ -114,13 +116,14 @@ class RuntimeMonitorThread(threading.Thread):
 
 
 class FrameCaptureThread(threading.Thread):
-    def __init__(self, cap, queue, stop_event, buffer_size=10, max_retries=3):
+    def __init__(self, cap, queue, stop_event, buffer_size=10, max_retries=3, resource_lock=None):
         super().__init__()
         self.cap = cap
         self.queue = queue
         self._stop_event = stop_event
         self.buffer_size = buffer_size
         self.max_retries = max_retries
+        self.resource_lock = resource_lock  # Store the lock
 
         # Log the properties when initializing the thread
         logger.info(
@@ -143,7 +146,8 @@ class FrameCaptureThread(threading.Thread):
                         time.sleep(1)  # Wait before retrying
                     else:
                         retry_count = 0  # Reset retry count on successful read
-                        self.queue.put(frame)
+                        with self.resource_lock:
+                            self.queue.put(frame)
                 else:
                     time.sleep(0.01)  # Avoid busy-waiting when the buffer is full
 
@@ -182,7 +186,7 @@ class HeartbeatThread(threading.Thread):
 
 
 class FrameProcessorThread(threading.Thread):
-    def __init__(self, queue, frame_processors, source_image, process, stop_event, max_workers=12):
+    def __init__(self, queue, frame_processors, source_image, process, stop_event, max_workers=12, resource_lock=None):
         super().__init__()
         self.queue = queue
         self.frame_processors = frame_processors
@@ -190,6 +194,7 @@ class FrameProcessorThread(threading.Thread):
         self.process = process
         self._stop_event = stop_event
         self.max_workers = max_workers
+        self.resource_lock = resource_lock  # Store the lock
         
         # Log the properties when initializing the thread
         logger.info(
@@ -204,7 +209,8 @@ class FrameProcessorThread(threading.Thread):
             futures = []
             while not self._stop_event.is_set() or not self.queue.empty():
                 try:
-                    frame = self.queue.get(timeout=1)
+                    with self.resource_lock:
+                        frame = self.queue.get(timeout=1)
                     future = executor.submit(self.process_single_frame, frame)
                     futures.append(future)
 
@@ -229,7 +235,8 @@ class FrameProcessorThread(threading.Thread):
         """Push the frame to FFmpeg with retry mechanism."""
         for attempt in range(retry_count):
             try:
-                self.process.stdin.write(frame.tobytes())
+                with self.resource_lock:
+                    self.process.stdin.write(frame.tobytes())
                 return True
             except BrokenPipeError:
                 logger.error(f"Push Streaming failed, retrying... (attempt {attempt + 1})")
@@ -327,7 +334,13 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
     stop_event = threading.Event()
 
     # Start the frame capture thread
-    frame_capture_thread = FrameCaptureThread(cap, frame_queue, stop_event, buffer_size=1)
+    frame_capture_thread = FrameCaptureThread(
+        cap, 
+        frame_queue, 
+        stop_event, 
+        buffer_size=1,
+        resource_lock=resource_lock
+        )
     frame_capture_thread.start()
 
    # Create and start processing thread
@@ -336,7 +349,8 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
         frame_processors=frame_processors, 
         source_image=source_image,
         process=process,
-        stop_event=stop_event
+        stop_event=stop_event,
+        resource_lock=resource_lock
     )
     frame_processor_thread.start()
 
