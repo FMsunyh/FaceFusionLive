@@ -185,6 +185,74 @@ class HeartbeatThread(threading.Thread):
         self._stop_event.set()
 
 
+# class FrameProcessorThread(threading.Thread):
+#     def __init__(self, queue, frame_processors, source_image, process, stop_event, max_workers=12, resource_lock=None):
+#         super().__init__()
+#         self.queue = queue
+#         self.frame_processors = frame_processors
+#         self.source_image = source_image
+#         self.process = process
+#         self._stop_event = stop_event
+#         self.max_workers = max_workers
+#         self.resource_lock = resource_lock  # Store the lock
+        
+#         # Log the properties when initializing the thread
+#         logger.info(
+#             f"Initialized FrameProcessorThread: "
+#             f"Thread Name: {self.name}, "
+#             f"Queue Size: {self.queue.qsize()}, "
+#             f"Max Workers: {self.max_workers}"
+#         )
+
+#     def run(self):
+#         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+#             futures = []
+#             while not self._stop_event.is_set() or not self.queue.empty():
+#                 try:
+#                     # with self.resource_lock:
+#                     frame = self.queue.get(timeout=1)
+#                     future = executor.submit(self.process_single_frame, frame)
+#                     futures.append(future)
+
+#                     if len(futures) > self.max_workers:
+#                         for future in futures:
+#                             processed_frame = future.result()
+#                             if not self.push_stream_with_retry(processed_frame):
+#                                 logger.error("Streaming failed, unable to recover, stop frame-processor-thread")
+#                                 self._stop_event.set()
+#                                 break
+#                         futures.clear()
+
+#                 except queue.Empty:
+#                     continue
+
+#     def process_single_frame(self, frame):
+#         for frame_processor in self.frame_processors:
+#             frame = frame_processor.process_frame(self.source_image, frame)
+#         return frame
+
+#     def push_stream_with_retry(self, frame, retry_count=3):
+#         """Push the frame to FFmpeg with retry mechanism."""
+#         for attempt in range(retry_count):
+#             try:
+#                 # with self.resource_lock:
+#                 self.process.stdin.write(frame.tobytes())
+#                 return True
+#             except BrokenPipeError:
+#                 logger.error(f"Push Streaming failed, retrying... (attempt {attempt + 1})")
+#                 time.sleep(1)
+#                 if attempt == retry_count - 1:
+#                     return False
+#             except Exception as e:
+#                 logger.error(f"Error writing to FFmpeg: {e}")
+#                 time.sleep(1)
+#                 if attempt == retry_count - 1:
+#                     return False
+#         return False
+    
+#     def stop(self):
+#         self._stop_event.set()
+
 class FrameProcessorThread(threading.Thread):
     def __init__(self, queue, frame_processors, source_image, process, stop_event, max_workers=12, resource_lock=None):
         super().__init__()
@@ -195,7 +263,7 @@ class FrameProcessorThread(threading.Thread):
         self._stop_event = stop_event
         self.max_workers = max_workers
         self.resource_lock = resource_lock  # Store the lock
-        
+
         # Log the properties when initializing the thread
         logger.info(
             f"Initialized FrameProcessorThread: "
@@ -209,19 +277,22 @@ class FrameProcessorThread(threading.Thread):
             futures = []
             while not self._stop_event.is_set() or not self.queue.empty():
                 try:
-                    # with self.resource_lock:
+                    # Fetch a frame from the queue
                     frame = self.queue.get(timeout=1)
+                    
+                    # Submit the frame processing task to the executor
                     future = executor.submit(self.process_single_frame, frame)
                     futures.append(future)
-
-                    if len(futures) > self.max_workers:
+                    
+                    # Ensure that futures are processed in the same order
+                    if len(futures) >= self.max_workers:
                         for future in futures:
-                            processed_frame = future.result()
+                            processed_frame = future.result()  # Blocking call to ensure order
                             if not self.push_stream_with_retry(processed_frame):
-                                logger.error("Streaming failed, unable to recover, stop frame-processor-thread")
+                                logger.error("Streaming failed, unable to recover, stopping frame-processor-thread")
                                 self._stop_event.set()
                                 break
-                        futures.clear()
+                        futures.clear()  # Clear the list of futures once processed
 
                 except queue.Empty:
                     continue
@@ -235,7 +306,6 @@ class FrameProcessorThread(threading.Thread):
         """Push the frame to FFmpeg with retry mechanism."""
         for attempt in range(retry_count):
             try:
-                # with self.resource_lock:
                 self.process.stdin.write(frame.tobytes())
                 return True
             except BrokenPipeError:
@@ -253,34 +323,60 @@ class FrameProcessorThread(threading.Thread):
     def stop(self):
         self._stop_event.set()
 
+
 def start_ffmpeg_process(width, height, fps, input_rtmp_url, output_rtmp_url):
     """Start the FFmpeg process for streaming."""
+    # ffmpeg_command = [
+    # 'ffmpeg',
+    # '-y',
+    # '-f', 'rawvideo',
+    # '-vcodec', 'rawvideo',
+    # '-pix_fmt', 'bgr24',
+    # '-s', f'{width}x{height}',
+    # '-r', str(fps),
+    # '-i', '-',
+    # '-i', input_rtmp_url,
+    # '-c:v', 'h264_nvenc',
+    # '-c:a', 'aac',
+    # '-b:a', '128k',
+    # '-pix_fmt', 'yuv420p',
+    # '-preset', 'fast',
+    # '-f', 'flv',
+    # '-flvflags', 'no_duration_filesize',
+    # # '-fps_mode', 'vfr',  # Replace -vsync with -fps_mod
+    # '-async', '1',        # Ensure audio sync
+    # '-shortest',          # Stop encoding when the shortest stream ends
+    # '-max_interleave_delta', '100M',
+    # '-probesize', '100M',
+    # '-analyzeduration', '100M',
+    # # '-loglevel', 'debug', # Debugging level
+    # output_rtmp_url
+    # ]
+    
     ffmpeg_command = [
-    'ffmpeg',
-    '-y',
-    '-f', 'rawvideo',
-    '-vcodec', 'rawvideo',
-    '-pix_fmt', 'bgr24',
-    '-s', f'{width}x{height}',
-    '-r', str(fps),
-    '-i', '-',
-    '-i', input_rtmp_url,
-    '-c:v', 'h264_nvenc',
-    '-c:a', 'aac',
-    '-b:a', '128k',
-    '-pix_fmt', 'yuv420p',
-    '-preset', 'fast',
-    '-f', 'flv',
-    '-flvflags', 'no_duration_filesize',
-    '-fps_mode', 'vfr',  # Replace -vsync with -fps_mod
-    '-async', '1',        # Ensure audio sync
-    '-shortest',          # Stop encoding when the shortest stream ends
-    '-max_interleave_delta', '100M',
-    '-probesize', '100M',
-    '-analyzeduration', '100M',
-    # '-loglevel', 'debug', # Debugging level
-    output_rtmp_url
-]
+        'ffmpeg',
+        # '-hide_banner',  # 隐藏FFmpeg版本和版权信息
+        '-y',  # Overwrite output files without asking
+        '-f', 'rawvideo',  # Input format
+        '-vcodec', 'rawvideo',
+        '-pix_fmt', 'bgr24',  # Pixel format (OpenCV uses BGR by default)
+        '-s', f'{width}x{height}',  # Frame size
+        '-r', str(fps),  # Frame rate
+        '-i', '-',  # Input from stdin
+        '-i', input_rtmp_url,  # 来自RTMP流的音频输入
+        # '-c:v', 'libx264',  # Video codec
+        '-c:v', 'h264_nvenc',  # 使用 NVENC 进行视频编码
+        '-c:a', 'copy', # 音频编码器（直接复制音频，不重新编码）
+        '-pix_fmt', 'yuv420p',  # Pixel format for output
+        # '-preset', 'ultrafast',  # Encoding speed
+        '-preset', 'fast',  # NVENC 提供了一些预设选项，"fast" 比 "ultrafast" 更高效
+        '-f', 'flv',  # Output format
+        '-flvflags', 'no_duration_filesize',
+        '-fps_mode', 'vfr',  # Replace -vsync with -fps_mod
+        '-async', '1',        # Ensure audio sync
+        '-shortest',          # Stop encoding when the shortest stream ends
+        output_rtmp_url
+    ]
 
     process = subprocess.Popen(ffmpeg_command, stdin=subprocess.PIPE)
     logger.info(f"Started FFmpeg streaming to: {output_rtmp_url}")
@@ -458,7 +554,7 @@ def manage_streams(streams):
 def webcam():
     frame_processors = modules.globals.frame_processors
     streams = [
-        ('rtmp://120.241.153.43:1935/live111', 'rtmp://120.241.153.43:1935/live', modules.globals.source_path, frame_processors),
+        ('rtmp://120.241.153.43:1935/live_input', 'rtmp://120.241.153.43:1935/live', modules.globals.source_path, frame_processors),
     ]
     manage_streams(streams)
 
