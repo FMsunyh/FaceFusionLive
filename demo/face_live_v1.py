@@ -64,7 +64,7 @@ def process_frames(frames, frame_processors, source_image):
     #     ))
     # return processed_frames
 
-    time.sleep(0.2)
+    time.sleep(0.)
     return frames
 
 
@@ -90,6 +90,12 @@ def start_ffmpeg_process(width, height, fps,input_rtmp_url, output_rtmp_url):
         '-preset', 'fast',  # NVENC 提供了一些预设选项，"fast" 比 "ultrafast" 更高效
         '-f', 'flv',  # Output format
         '-flvflags', 'no_duration_filesize',
+        '-fps_mode', 'vfr',  # Replace -vsync with -fps_mod
+        '-async', '1',        # Ensure audio sync
+        '-shortest',          # Stop encoding when the shortest stream ends
+        '-max_interleave_delta', '100M',
+        '-probesize', '100M',
+        '-analyzeduration', '100M',
         output_rtmp_url
     ]
     

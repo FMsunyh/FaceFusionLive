@@ -1,3 +1,7 @@
+import sys
+sys.path
+sys.path.append('D:\code\FaceFusionLive')
+
 from modules.logger import logger
 from multiprocessing import Process, current_process
 import cv2
@@ -12,6 +16,11 @@ import multiprocessing
 import threading
 import queue
 import socket
+import os
+
+os.environ['OMP_NUM_THREADS'] = '1'
+# reduce tensorflow log level
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 resource_lock = threading.Lock()
 
@@ -298,17 +307,9 @@ class FrameProcessorThread(threading.Thread):
                     continue
 
     def process_single_frame(self, frame):
-        # time.sleep(0.1)
-        start_time = time.time()
-
-        for frame_processor in self.frame_processors:
-            frame = frame_processor.process_frame(self.source_image, frame)
-
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        hours, remainder = divmod(elapsed_time, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        logger.info(f"Program runtime: {int(hours)} hours {int(minutes)} minutes {seconds:.2f} seconds")
+        # for frame_processor in self.frame_processors:
+        #     frame = frame_processor.process_frame(self.source_image, frame)
+        time.sleep(0.2)
         return frame
 
     def push_stream_with_retry(self, frame, retry_count=3):
@@ -397,7 +398,7 @@ def start_ffmpeg_process(width, height, fps, input_rtmp_url, output_rtmp_url):
         '-s', f'{width}x{height}',
         '-r', str(fps),
         '-i', '-',
-        '-itsoffset', '10',   # 延迟音频
+        '-itsoffset', '2',   # 延迟音频
         '-i', input_rtmp_url,
         '-c:v', 'h264_nvenc',
         '-c:a', 'aac',
@@ -460,8 +461,8 @@ def cleanup_resources(cap, process):
 def handle_streaming(cap, process, face_source_path, frame_processors):
     """Handle video streaming, capture, process frames, and push through FFmpeg."""
     logger.info(f"Face source: {face_source_path}")
-    frame_processors = get_frame_processors_modules(frame_processors)
-    source_image = get_one_face(cv2.imread(face_source_path))
+    frame_processors = None
+    source_image = cv2.imread(face_source_path)
 
     frame_queue = queue.Queue(maxsize=100)
     stop_event = threading.Event()
@@ -595,5 +596,5 @@ def webcam():
     ]
     manage_streams(streams)
 
-# if __name__ == "__main__":
-#     webcam()
+if __name__ == "__main__":
+    webcam()

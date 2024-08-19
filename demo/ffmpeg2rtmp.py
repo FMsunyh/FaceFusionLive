@@ -12,7 +12,38 @@ width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 fps = cap.get(cv2.CAP_PROP_FPS) or 25  # Default to 25 fps if unknown
 
-# Define the FFmpeg command to send the video stream
+print(f"width:{width}, height:{height}, fps:{fps}")
+
+# # Define the FFmpeg command to send the video stream
+# ffmpeg_command = [
+#     'ffmpeg',
+#     '-y',
+#     '-f', 'rawvideo',
+#     '-vcodec', 'rawvideo',
+#     '-pix_fmt', 'bgr24',
+#     '-s', f'{width}x{height}',
+#     '-r', str(fps),
+#     '-i', '-',
+#     '-i', input_rtmp_url,
+#     '-c:v', 'h264_nvenc',
+#     '-c:a', 'aac',
+#     '-b:a', '128k',
+#     '-pix_fmt', 'yuv420p',
+#     '-preset', 'fast',
+#     '-f', 'flv',
+#     '-flvflags', 'no_duration_filesize',
+#     # '-fps_mode', 'vfr',  # Replace -vsync with -fps_mod
+#     '-vsync', '1',
+
+#     # '-async', '1',        # Ensure audio sync
+#     '-shortest',          # Stop encoding when the shortest stream ends
+#     '-max_interleave_delta', '100M',
+#     '-probesize', '100M',
+#     '-analyzeduration', '100M',
+#     # '-loglevel', 'debug', # Debugging level
+#     output_rtmp_url
+# ]
+
 ffmpeg_command = [
     'ffmpeg',
     '-y',
@@ -22,6 +53,7 @@ ffmpeg_command = [
     '-s', f'{width}x{height}',
     '-r', str(fps),
     '-i', '-',
+    '-itsoffset', '2',   # 延迟音频
     '-i', input_rtmp_url,
     '-c:v', 'h264_nvenc',
     '-c:a', 'aac',
@@ -30,15 +62,16 @@ ffmpeg_command = [
     '-preset', 'fast',
     '-f', 'flv',
     '-flvflags', 'no_duration_filesize',
-    # '-fps_mode', 'vfr',  # Replace -vsync with -fps_mod
-    '-async', '1',        # Ensure audio sync
-    '-shortest',          # Stop encoding when the shortest stream ends
+    '-vsync', '1',              # Use vsync for synchronization
+    # '-async', '10',
+    '-af', 'aresample=async=1',  # Resample audio
+    '-shortest',
     '-max_interleave_delta', '100M',
     '-probesize', '100M',
     '-analyzeduration', '100M',
-    # '-loglevel', 'debug', # Debugging level
     output_rtmp_url
 ]
+
 
 # Start the FFmpeg process
 process = subprocess.Popen(ffmpeg_command, stdin=subprocess.PIPE)
