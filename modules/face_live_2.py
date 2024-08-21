@@ -17,7 +17,7 @@ from queue import Queue
 from threading import Thread
 
 # RTMP server URL and stream key
-input_rtmp_url = 'rtmp://120.241.153.43:1935/live111'
+input_rtmp_url = 'rtmp://120.241.153.43:1935/live_input'
 output_rtmp_url = "rtmp://120.241.153.43:1935/live"
 # Set the frame width, height, and frames per second (FPS)
 frame_width = 1280

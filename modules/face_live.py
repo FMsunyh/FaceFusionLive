@@ -299,16 +299,16 @@ class FrameProcessorThread(threading.Thread):
 
     def process_single_frame(self, frame):
         # time.sleep(0.1)
-        start_time = time.time()
+        # start_time = time.time()
 
         for frame_processor in self.frame_processors:
             frame = frame_processor.process_frame(self.source_image, frame)
 
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        hours, remainder = divmod(elapsed_time, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        logger.info(f"Program runtime: {int(hours)} hours {int(minutes)} minutes {seconds:.2f} seconds")
+        # end_time = time.time()
+        # elapsed_time = end_time - start_time
+        # hours, remainder = divmod(elapsed_time, 3600)
+        # minutes, seconds = divmod(remainder, 60)
+        # logger.info(f"Program runtime: {int(hours)} hours {int(minutes)} minutes {seconds:.2f} seconds")
         return frame
 
     def push_stream_with_retry(self, frame, retry_count=3):
@@ -592,6 +592,7 @@ def webcam():
     frame_processors = modules.globals.frame_processors
     streams = [
         ('rtmp://120.241.153.43:1935/live_input', 'rtmp://120.241.153.43:1935/live', modules.globals.source_path, frame_processors),
+        # ('rtmp://172.30.88.43:1935/live_input', 'rtmp://172.30.88.43:1935/live', modules.globals.source_path, frame_processors),
     ]
     manage_streams(streams)
 

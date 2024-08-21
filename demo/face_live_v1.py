@@ -1,11 +1,14 @@
+import os
+import sys
+sys.path
+parent_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(parent_directory)
+
 import logging
 from multiprocessing import Process, current_process
 import cv2
 import subprocess
 import time
-import sys
-sys.path
-sys.path.append('D:\code\FaceFusionLive')
 
 import concurrent.futures
 import modules.globals
@@ -28,7 +31,7 @@ logging.basicConfig(
 )
 
 # # 定义RTMP服务器的输入输出URL
-# input_rtmp_url = 'rtmp://120.241.153.43:1935/live111'
+# input_rtmp_url = 'rtmp://120.241.153.43:1935/live_input'
 # output_rtmp_url = "rtmp://120.241.153.43:1935/live"
 # frame_width = 1280
 # frame_height = 720

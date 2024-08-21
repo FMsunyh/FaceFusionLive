@@ -1,6 +1,8 @@
+import os
 import sys
 sys.path
-sys.path.append('D:\code\FaceFusionLive')
+parent_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(parent_directory)
 
 from modules.logger import logger
 from multiprocessing import Process, current_process
