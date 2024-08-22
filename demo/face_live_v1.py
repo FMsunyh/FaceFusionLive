@@ -25,7 +25,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(processName)s: %(message)s',
     handlers=[
-        logging.FileHandler("face_live.log"),
+        logging.FileHandler(r"logs\\app.log"),
         logging.StreamHandler()
     ]
 )
