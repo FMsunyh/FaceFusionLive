@@ -13,411 +13,14 @@ import threading
 import queue
 import socket
 
+from modules.task_threads.ffmpeg_subprocess import start_ffmpeg_process
+from modules.task_threads.frame_capture_thread import FrameCaptureThread
+from modules.task_threads.frame_processor_thread import FrameProcessorThread
+from modules.task_threads.heart_beat_thread import HeartbeatThread
+from modules.task_threads.rtmp_monitor_thread import RTMPMonitorThread
+from modules.task_threads.runtime_monitor_thread import RuntimeMonitorThread
+
 resource_lock = threading.Lock()
-
-class RTMPMonitorThread(threading.Thread):
-    def __init__(self, rtmp_url, stop_event, interval=5):
-        super().__init__()
-        self.rtmp_url = rtmp_url
-        self.interval = interval
-        self._stop_event = stop_event
-        self.network_available = True
-
-    def run(self):
-        while not self._stop_event.is_set():
-            self.network_available = self.is_rtmp_available(self.rtmp_url)
-            if not self.network_available:
-                logger.warning(f"RTMP 服务器不可用: {self.rtmp_url}")
-            time.sleep(self.interval)
-
-    def is_rtmp_available(self, rtmp_url):
-        """检查 RTMP 服务器是否可用"""
-        try:
-            # 从 RTMP URL 中提取主机和端口
-            host, port = self.parse_rtmp_url(rtmp_url)
-            socket.setdefaulttimeout(3)
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect((host, port))
-            sock.close()
-            return True
-        except socket.error as e:
-            logger.error(f"RTMP 连接失败: {e}")
-            return False
-
-    def parse_rtmp_url(self, rtmp_url):
-        """从 RTMP URL 中解析出主机和端口"""
-        url_parts = rtmp_url.replace("rtmp://", "").split("/")
-        host_port = url_parts[0].split(":")
-        host = host_port[0]
-        port = int(host_port[1]) if len(host_port) > 1 else 1935  # 默认端口为 1935
-        return host, port
-
-    def stop(self):
-        self._stop_event.set()
-
-
-class NetworkMonitorThread(threading.Thread):
-    def __init__(self, stop_event, interval=5, check_host="8.8.8.8"):
-        super().__init__()
-        self.interval = interval
-        self.check_host = check_host
-        self._stop_event = stop_event
-        self.network_available = True
-
-    def run(self):
-        while not self._stop_event.is_set():
-            self.network_available = self.is_network_available()
-            if not self.network_available:
-                logger.warning("网络不可用，等待恢复...")
-            time.sleep(self.interval)
-
-    def is_network_available(self):
-        """检查网络是否可用"""
-        try:
-            socket.setdefaulttimeout(3)
-            socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((self.check_host, 53))
-            return True
-        except socket.error:
-            return False
-
-    def stop(self):
-        self._stop_event.set()
-
-
-class RuntimeMonitorThread(threading.Thread):
-    def __init__(self, start_time, stop_event, interval=60):
-        super().__init__()
-        self.start_time = start_time
-        self.interval = interval
-        self._stop_event = stop_event
-        
-        # Log the properties when initializing the thread
-        logger.info(
-            f"Initialized FrameCaptureThread: "
-            f"Thread Name: {self.name}, "
-            f"Interval: {self.interval} "
-        )
-
-    def run(self):
-        while not self._stop_event.is_set():
-            self.measure_runtime(self.start_time)
-            time.sleep(self.interval)
-
-    def measure_runtime(self, start_time):
-        """Record the program's runtime and output in hours, minutes, and seconds."""
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        hours, remainder = divmod(elapsed_time, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        logger.info(f"Program runtime: {int(hours)} hours {int(minutes)} minutes {seconds:.2f} seconds")
-
-    def stop(self):
-        self._stop_event.set()
-
-
-class FrameCaptureThread(threading.Thread):
-    def __init__(self, cap, queue, stop_event, buffer_size=10, max_retries=3, resource_lock=None):
-        super().__init__()
-        self.cap = cap
-        self.queue = queue
-        self._stop_event = stop_event
-        self.buffer_size = buffer_size
-        self.max_retries = max_retries
-        self.resource_lock = resource_lock  # Store the lock
-
-        # Log the properties when initializing the thread
-        logger.info(
-            f"Initialized FrameCaptureThread: "
-            f"Thread Name: {self.name}, "
-            f"Queue Size: {self.queue.qsize()}, "
-            f"Buffer Size: {self.buffer_size}, "
-            f"Max Retries: {self.max_retries}"
-        )
-
-    def run(self):
-        retry_count = 0
-        while not self._stop_event.is_set() and retry_count < self.max_retries:
-            try:
-                if self.queue.qsize() < self.buffer_size:
-                    ret, frame = self.cap.read()
-                    if not ret:
-                        retry_count += 1
-                        logger.error(f"Failed to read frame, retrying... (attempt {retry_count})")
-                        time.sleep(1)  # Wait before retrying
-                    else:
-                        retry_count = 0  # Reset retry count on successful read
-                        # with self.resource_lock:
-                        self.queue.put(frame)
-                else:
-                    time.sleep(0.01)  # Avoid busy-waiting when the buffer is full
-
-            except Exception as e:
-                logger.error(f"Error in FrameCaptureThread: {e}")
-                retry_count += 1
-                time.sleep(1)  # Wait before retrying
-
-        if retry_count >= self.max_retries:
-            logger.error("Maximum retries reached for reading frames. Stopping thread.")
-
-    def stop(self):
-        self._stop_event.set()
-
-
-class HeartbeatThread(threading.Thread):
-    def __init__(self, stop_event, interval=60):
-        super().__init__()
-        self.interval = interval
-        self._stop_event = stop_event
-                
-        # Log the properties when initializing the thread
-        logger.info(
-            f"Initialized FrameProcessorThread: "
-            f"Thread Name: {self.name}, "
-            f"Interval: {self.interval} "
-        )
-
-    def run(self):
-        while not self._stop_event.is_set():
-            logger.info("Heartbeat: Program is running normally")
-            time.sleep(self.interval)
-
-    def stop(self):
-        self._stop_event.set()
-
-
-# class FrameProcessorThread(threading.Thread):
-#     def __init__(self, queue, frame_processors, source_image, process, stop_event, max_workers=12, resource_lock=None):
-#         super().__init__()
-#         self.queue = queue
-#         self.frame_processors = frame_processors
-#         self.source_image = source_image
-#         self.process = process
-#         self._stop_event = stop_event
-#         self.max_workers = max_workers
-#         self.resource_lock = resource_lock  # Store the lock
-        
-#         # Log the properties when initializing the thread
-#         logger.info(
-#             f"Initialized FrameProcessorThread: "
-#             f"Thread Name: {self.name}, "
-#             f"Queue Size: {self.queue.qsize()}, "
-#             f"Max Workers: {self.max_workers}"
-#         )
-
-#     def run(self):
-#         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-#             futures = []
-#             while not self._stop_event.is_set() or not self.queue.empty():
-#                 try:
-#                     # with self.resource_lock:
-#                     frame = self.queue.get(timeout=1)
-#                     future = executor.submit(self.process_single_frame, frame)
-#                     futures.append(future)
-
-#                     if len(futures) > self.max_workers:
-#                         for future in futures:
-#                             processed_frame = future.result()
-#                             if not self.push_stream_with_retry(processed_frame):
-#                                 logger.error("Streaming failed, unable to recover, stop frame-processor-thread")
-#                                 self._stop_event.set()
-#                                 break
-#                         futures.clear()
-
-#                 except queue.Empty:
-#                     continue
-
-#     def process_single_frame(self, frame):
-#         for frame_processor in self.frame_processors:
-#             frame = frame_processor.process_frame(self.source_image, frame)
-#         return frame
-
-#     def push_stream_with_retry(self, frame, retry_count=3):
-#         """Push the frame to FFmpeg with retry mechanism."""
-#         for attempt in range(retry_count):
-#             try:
-#                 # with self.resource_lock:
-#                 self.process.stdin.write(frame.tobytes())
-#                 return True
-#             except BrokenPipeError:
-#                 logger.error(f"Push Streaming failed, retrying... (attempt {attempt + 1})")
-#                 time.sleep(1)
-#                 if attempt == retry_count - 1:
-#                     return False
-#             except Exception as e:
-#                 logger.error(f"Error writing to FFmpeg: {e}")
-#                 time.sleep(1)
-#                 if attempt == retry_count - 1:
-#                     return False
-#         return False
-    
-#     def stop(self):
-#         self._stop_event.set()
-
-class FrameProcessorThread(threading.Thread):
-    def __init__(self, queue, frame_processors, source_image, process, stop_event, max_workers=12, resource_lock=None):
-        super().__init__()
-        self.queue = queue
-        self.frame_processors = frame_processors
-        self.source_image = source_image
-        self.process = process
-        self._stop_event = stop_event
-        self.max_workers = max_workers
-        self.resource_lock = resource_lock  # Store the lock
-
-        # Log the properties when initializing the thread
-        logger.info(
-            f"Initialized FrameProcessorThread: "
-            f"Thread Name: {self.name}, "
-            f"Queue Size: {self.queue.qsize()}, "
-            f"Max Workers: {self.max_workers}"
-        )
-
-    def run(self):
-        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = []
-            while not self._stop_event.is_set() or not self.queue.empty():
-                try:
-                    # Fetch a frame from the queue
-                    frame = self.queue.get(timeout=1)
-                    
-                    # Submit the frame processing task to the executor
-                    future = executor.submit(self.process_single_frame, frame)
-                    futures.append(future)
-                    
-                    # Ensure that futures are processed in the same order
-                    if len(futures) >= self.max_workers:
-                        for future in futures:
-                            processed_frame = future.result()  # Blocking call to ensure order
-                            if not self.push_stream_with_retry(processed_frame):
-                                logger.error("Streaming failed, unable to recover, stopping frame-processor-thread")
-                                self._stop_event.set()
-                                break
-                        futures.clear()  # Clear the list of futures once processed
-
-                except queue.Empty:
-                    continue
-
-    def process_single_frame(self, frame):
-        # time.sleep(0.1)
-        # start_time = time.time()
-
-        for frame_processor in self.frame_processors:
-            frame = frame_processor.process_frame(self.source_image, frame)
-
-        # end_time = time.time()
-        # elapsed_time = end_time - start_time
-        # hours, remainder = divmod(elapsed_time, 3600)
-        # minutes, seconds = divmod(remainder, 60)
-        # logger.info(f"Program runtime: {int(hours)} hours {int(minutes)} minutes {seconds:.2f} seconds")
-        return frame
-
-    def push_stream_with_retry(self, frame, retry_count=3):
-        """Push the frame to FFmpeg with retry mechanism."""
-        for attempt in range(retry_count):
-            try:
-                self.process.stdin.write(frame.tobytes())
-                return True
-            except BrokenPipeError:
-                logger.error(f"Push Streaming failed, retrying... (attempt {attempt + 1})")
-                time.sleep(1)
-                if attempt == retry_count - 1:
-                    return False
-            except Exception as e:
-                logger.error(f"Error writing to FFmpeg: {e}")
-                time.sleep(1)
-                if attempt == retry_count - 1:
-                    return False
-        return False
-    
-    def stop(self):
-        self._stop_event.set()
-
-
-def start_ffmpeg_process(width, height, fps, input_rtmp_url, output_rtmp_url):
-    """Start the FFmpeg process for streaming."""
-    # ffmpeg_command = [
-    # 'ffmpeg',
-    # '-y',
-    # '-f', 'rawvideo',
-    # '-vcodec', 'rawvideo',
-    # '-pix_fmt', 'bgr24',
-    # '-s', f'{width}x{height}',
-    # '-r', str(fps),
-    # '-i', '-',
-    # '-itsoffset', '2',   # 延迟音频
-    # '-i', input_rtmp_url,
-    # '-c:v', 'h264_nvenc',
-    # '-c:a', 'aac',
-    # '-b:a', '128k',
-    # '-pix_fmt', 'yuv420p',
-    # '-preset', 'fast',
-    # '-f', 'flv',
-    # '-flvflags', 'no_duration_filesize',
-    # # '-fps_mode', 'vfr',  # Replace -vsync with -fps_mod
-    # '-async', '1',        # Ensure audio sync
-    # '-shortest',          # Stop encoding when the shortest stream ends
-    # '-max_interleave_delta', '100M',
-    # '-probesize', '100M',
-    # '-analyzeduration', '100M',
-    # # '-loglevel', 'debug', # Debugging level
-    # output_rtmp_url
-    # ]
-    
-    # ffmpeg_command = [
-    #     'ffmpeg',
-    #     # '-hide_banner',  # 隐藏FFmpeg版本和版权信息
-    #     '-y',  # Overwrite output files without asking
-    #     '-f', 'rawvideo',  # Input format
-    #     '-vcodec', 'rawvideo',
-    #     '-pix_fmt', 'bgr24',  # Pixel format (OpenCV uses BGR by default)
-    #     '-s', f'{width}x{height}',  # Frame size
-    #     '-r', str(fps),  # Frame rate
-    #     '-i', '-',  # Input from stdin
-    #     '-i', input_rtmp_url,  # 来自RTMP流的音频输入
-    #     # '-c:v', 'libx264',  # Video codec
-    #     '-c:v', 'h264_nvenc',  # 使用 NVENC 进行视频编码
-    #     '-c:a', 'copy', # 音频编码器（直接复制音频，不重新编码）
-    #     '-pix_fmt', 'yuv420p',  # Pixel format for output
-    #     # '-preset', 'ultrafast',  # Encoding speed
-    #     '-preset', 'fast',  # NVENC 提供了一些预设选项，"fast" 比 "ultrafast" 更高效
-    #     '-f', 'flv',  # Output format
-    #     '-flvflags', 'no_duration_filesize',
-    #     '-fps_mode', 'vfr',  # Replace -vsync with -fps_mod
-    #     '-async', '1',        # Ensure audio sync
-    #     '-shortest',          # Stop encoding when the shortest stream ends
-    #     output_rtmp_url
-    # ]
-
-    ffmpeg_command = [
-        'ffmpeg',
-        '-y',
-        '-f', 'rawvideo',
-        '-vcodec', 'rawvideo',
-        '-pix_fmt', 'bgr24',
-        '-s', f'{width}x{height}',
-        '-r', str(fps),
-        '-i', '-',
-        '-itsoffset', '10',   # 延迟音频
-        '-i', input_rtmp_url,
-        '-c:v', 'h264_nvenc',
-        '-c:a', 'aac',
-        '-b:a', '128k',
-        '-pix_fmt', 'yuv420p',
-        '-preset', 'fast',
-        '-f', 'flv',
-        '-flvflags', 'no_duration_filesize',
-        '-vsync', '1',              # Use vsync for synchronization
-        # '-async', '10',
-        '-af', 'aresample=async=1',  # Resample audio
-        '-shortest',
-        '-max_interleave_delta', '100M',
-        '-probesize', '100M',
-        '-analyzeduration', '100M',
-        output_rtmp_url
-    ]
-    process = subprocess.Popen(ffmpeg_command, stdin=subprocess.PIPE)
-    logger.info(f"Started FFmpeg streaming to: {output_rtmp_url}")
-    return process
 
 def open_input_stream(input_rtmp_url):
     """Open the input RTMP stream."""
@@ -471,7 +74,7 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
         cap, 
         frame_queue, 
         stop_event, 
-        buffer_size=1,
+        buffer_size=10,
         resource_lock=resource_lock
         )
     frame_capture_thread.start()
@@ -496,7 +99,7 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
     # network_monitor_thread = NetworkMonitorThread(stop_event=stop_event, interval=5, check_host="rtmp://120.241.153.43")
     # network_monitor_thread.start()
 
-    rtmp_monitor_thread = RTMPMonitorThread(rtmp_url='rtmp://120.241.153.43:1935', stop_event=stop_event, interval=5)
+    rtmp_monitor_thread = RTMPMonitorThread(rtmp_url='rtmp://120.241.153.43:1935', stop_event=stop_event, interval=720)
     rtmp_monitor_thread.start()
 
     try:
@@ -518,15 +121,49 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
         logger.error(f"Error in streaming: {e}")
 
     finally:
-        stop_event.set()
-        frame_processor_thread.join()
-        frame_capture_thread.join()
-        heartbeat_thread.join()
-        runtime_monitor_thread.join()
-        rtmp_monitor_thread.join()
+        logger.info("stop  thread.")
+        # stop_event.set()
+        frame_processor_thread.stop()
+        frame_processor_thread.join(timeout=1)
+
+        frame_capture_thread.stop()
+        frame_capture_thread.join(timeout=1)
+
+        heartbeat_thread.stop()
+        heartbeat_thread.join(timeout=1)
+
+        rtmp_monitor_thread.stop()
+        rtmp_monitor_thread.join(timeout=1)
+
+        runtime_monitor_thread.stop()
+        runtime_monitor_thread.join(timeout=1)
+
+        
+        logger.info("done thread.")
         cleanup_resources(cap, process)
 
-def stream_worker(input_rtmp_url, output_rtmp_url, face_source_path, frame_processors, restart_interval=3, max_retries=3):
+def test(cap, process):
+    retries = 0
+    max_retries = 10
+    while retries < max_retries:
+        # Capture frame-by-frame
+        ret, frame = cap.read()
+        
+        # Check if the frame was read successfully
+        if ret:
+            # Display the resulting frame
+            process.stdin.write(frame.tobytes())
+
+            # If successful, reset retries
+            retries = 0
+        else:
+            print(f"Failed to read frame. Retrying {retries}...")
+            retries += 1
+            time.sleep(0.1)
+
+    # cleanup_resources(cap, process)
+
+def stream_worker(input_rtmp_url, output_rtmp_url, face_source_path, frame_processors, restart_interval=1, max_retries=100):
     """RTMP stream worker with retry mechanism."""
     retry_count = 0
     while retry_count < max_retries:
@@ -536,8 +173,10 @@ def stream_worker(input_rtmp_url, output_rtmp_url, face_source_path, frame_proce
             width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             fps = cap.get(cv2.CAP_PROP_FPS) or 25  # Default to 25 fps if unknown
-            
             process = start_ffmpeg_process(width, height, fps, input_rtmp_url, output_rtmp_url)
+
+            # test(cap, process)
+
             handle_streaming(cap, process, face_source_path, frame_processors)
 
         except cv2.error as cv_err:
@@ -591,7 +230,8 @@ def manage_streams(streams):
 def webcam():
     frame_processors = modules.globals.frame_processors
     streams = [
-        ('rtmp://120.241.153.43:1935/live_input', 'rtmp://120.241.153.43:1935/live', modules.globals.source_path, frame_processors),
+        # ('demo\\video\\m1.mp4', 'rtmp://120.241.153.43:1935/live3', modules.globals.source_path, frame_processors),
+        ('rtmp://120.241.153.43:1935/live_input', 'rtmp://120.241.153.43:1935/live3', modules.globals.source_path, frame_processors),
         # ('rtmp://172.30.88.43:1935/live_input', 'rtmp://172.30.88.43:1935/live', modules.globals.source_path, frame_processors),
     ]
     manage_streams(streams)
