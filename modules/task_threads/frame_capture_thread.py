@@ -33,7 +33,6 @@ class FrameCaptureThread(threading.Thread):
                         time.sleep(0.01)  # Wait before retrying
                     else:
                         retry_count = 0  # Reset retry count on successful read
-                        # with self.resource_lock:
                         self.queue.put(frame)
                         # logger.info(f"Succeeded to read frame...{self.queue.qsize()}/{self.buffer_size}")
                 else:

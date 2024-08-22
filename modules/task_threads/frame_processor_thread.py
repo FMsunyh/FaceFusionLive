@@ -76,8 +76,8 @@ class FrameProcessorThread(threading.Thread):
                         # Ensure that futures are processed in the same order
                         if len(frames) >= self.max_workers:
                             # results = frames
-                            # results = list(executor.map(self.process_single_frame, frames))
-                            results = list(executor.map(self.add_timestamp_to_image, frames))
+                            results = list(executor.map(self.process_single_frame, frames))
+                            # results = list(executor.map(self.add_timestamp_to_image, frames))
 
                             for future in results:
                                 if self.ffmpeg_processor and not self.ffmpeg_processor.send_frame_with_retry(future):
@@ -90,7 +90,8 @@ class FrameProcessorThread(threading.Thread):
                         logger.error(f" An abnormal error occurred...{e}")
                         continue
                 else:
-                    logger.info(f"Queue is empty")
+                    pass
+                    # logger.info(f"Queue is empty")
 
     def process_single_frame(self, frame):
         # time.sleep(0.1)

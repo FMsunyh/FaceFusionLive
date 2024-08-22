@@ -61,7 +61,7 @@ def handle_streaming(cap, ffmpeg_processor, face_source_path, frame_processors):
         cap, 
         frame_queue, 
         stop_event, 
-        buffer_size=10
+        buffer_size=100
         )
     frame_capture_thread.start()
 
@@ -169,7 +169,6 @@ def stream_worker(input_rtmp_url, output_rtmp_url, face_source_path, frame_proce
             # process = start_ffmpeg_process(width, height, fps, input_rtmp_url, output_rtmp_url)
             ffmpeg_processor = FFmpegStreamerProcess(width, height, fps, input_rtmp_url, output_rtmp_url)
             ffmpeg_processor.start()
-            # test(cap, process)
 
             handle_streaming(cap, ffmpeg_processor, face_source_path, frame_processors)
 

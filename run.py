@@ -5,6 +5,6 @@ import multiprocessing
 import platform
 
 if __name__ == '__main__':
-    if platform.system().lower() == 'Linux':
+    if platform.system().lower() == 'linux':
         multiprocessing.set_start_method('spawn')
     core.run()
