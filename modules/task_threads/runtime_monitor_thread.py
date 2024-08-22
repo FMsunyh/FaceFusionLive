@@ -18,8 +18,8 @@ class RuntimeMonitorThread(threading.Thread):
 
     def run(self):
         while not self._stop_event.is_set():
-            self.measure_runtime(self.start_time)
             time.sleep(self.interval)
+            self.measure_runtime(self.start_time)
 
     def measure_runtime(self, start_time):
         """Record the program's runtime and output in hours, minutes, and seconds."""

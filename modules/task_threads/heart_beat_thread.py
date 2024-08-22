@@ -18,8 +18,8 @@ class HeartbeatThread(threading.Thread):
 
     def run(self):
         while not self._stop_event.is_set():
-            logger.info("Heartbeat: Program is running normally")
             time.sleep(self.interval)
+            logger.info("Heartbeat: Program is running normally")
 
     def stop(self):
         logger.info(

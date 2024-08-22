@@ -13,6 +13,7 @@ import threading
 import queue
 import socket
 
+from modules.task_threads.ffmpeg_streamer_process import FFmpegStreamerProcess
 from modules.task_threads.ffmpeg_subprocess import start_ffmpeg_process
 from modules.task_threads.frame_capture_thread import FrameCaptureThread
 from modules.task_threads.frame_processor_thread import FrameProcessorThread
@@ -40,29 +41,12 @@ def cleanup_resources(cap, process):
     except Exception as e:
         logger.warning(f"Exception while releasing video stream: {e}")
 
-    try:
-        if process.stdin:
-            process.stdin.close()
-            logger.info("FFmpeg stdin closed")
-    except Exception as e:
-        logger.warning(f"Exception while closing FFmpeg stdin: {e}")
-
-    try:
-        process.wait(timeout=3)
-        logger.info("FFmpeg process ended normally")
-    except subprocess.TimeoutExpired:
-        logger.warning("Timeout waiting for FFmpeg process to end, trying to terminate")
-        try:
-            process.terminate()
-            process.wait(timeout=3)
-            logger.info("FFmpeg process terminated")
-        except Exception as e:
-            logger.error(f"Exception while terminating FFmpeg process: {e}")
+    process.stop()
 
     logger.info("All resources released")
 
 
-def handle_streaming(cap, process, face_source_path, frame_processors):
+def handle_streaming(cap, ffmpeg_processor, face_source_path, frame_processors):
     """Handle video streaming, capture, process frames, and push through FFmpeg."""
     logger.info(f"Face source: {face_source_path}")
     frame_processors = get_frame_processors_modules(frame_processors)
@@ -71,6 +55,7 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
     frame_queue = queue.Queue(maxsize=100)
     stop_event = threading.Event()
 
+    
     # Start the frame capture thread
     frame_capture_thread = FrameCaptureThread(
         cap, 
@@ -86,13 +71,13 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
         queue=frame_queue, 
         frame_processors=frame_processors, 
         source_image=source_image,
-        process=process,
+        ffmpeg_processor=ffmpeg_processor,
         stop_event=stop_event,
         resource_lock=resource_lock
     )
     # frame_processor_thread.start()
 
-    frame_pull_thread = FramePullThread(queue=frame_queue, process=process, stop_event=stop_event)
+    frame_pull_thread = FramePullThread(queue=frame_queue, ffmpeg_processor=ffmpeg_processor, stop_event=stop_event)
     frame_pull_thread.start()
     
     frame_vis_thread = FrameVisThread(queue=frame_queue,stop_event=stop_event)
@@ -112,12 +97,7 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
 
     try:
         while True:
-            if process.poll() is not None:
-                exit_code = process.poll()
-                if exit_code != 0:
-                    logger.error(f"FFmpeg process exited abnormally, exit code: {exit_code}")
-                else:
-                    logger.info("FFmpeg process exited normally")
+            if not ffmpeg_processor.is_running():
                 break
             
             # if not frame_capture_thread.is_alive() or not frame_processor_thread.is_alive() or not heartbeat_thread.is_alive() or not runtime_monitor_thread.is_alive():
@@ -153,10 +133,8 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
 
         runtime_monitor_thread.stop()
         runtime_monitor_thread.join(timeout=1)
-
         
         logger.info("done thread.")
-        cleanup_resources(cap, process)
 
 def test(cap, process):
     retries = 0
@@ -191,11 +169,14 @@ def stream_worker(input_rtmp_url, output_rtmp_url, face_source_path, frame_proce
             width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             fps = cap.get(cv2.CAP_PROP_FPS) or 25  # Default to 25 fps if unknown
-            process = start_ffmpeg_process(width, height, fps, input_rtmp_url, output_rtmp_url)
-
+            # process = start_ffmpeg_process(width, height, fps, input_rtmp_url, output_rtmp_url)
+            ffmpeg_processor = FFmpegStreamerProcess(width, height, fps, input_rtmp_url, output_rtmp_url)
+            ffmpeg_processor.start()
             # test(cap, process)
 
-            handle_streaming(cap, process, face_source_path, frame_processors)
+            handle_streaming(cap, ffmpeg_processor, face_source_path, frame_processors)
+
+            cleanup_resources(cap, ffmpeg_processor)
 
         except cv2.error as cv_err:
             logger.exception(f"OpenCV error: {cv_err}")
@@ -205,7 +186,7 @@ def stream_worker(input_rtmp_url, output_rtmp_url, face_source_path, frame_proce
             logger.exception(f"Unknown error during stream processing: {e}")
         finally:
             if 'cap' in locals():
-                cleanup_resources(cap, process)
+                cleanup_resources(cap, ffmpeg_processor)
             logger.info(f"Waiting {restart_interval} seconds before retrying...")
             time.sleep(restart_interval)
             retry_count += 1

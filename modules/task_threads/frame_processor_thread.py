@@ -7,18 +7,18 @@ import queue
 
 
 class FrameProcessorThread(threading.Thread):
-    def __init__(self, queue, frame_processors, source_image, process, stop_event, max_workers=12, resource_lock=None):
+    def __init__(self, queue, frame_processors, source_image, ffmpeg_processor, stop_event, max_workers=12, resource_lock=None):
         super().__init__()
         self.queue = queue
         self.frame_processors = frame_processors
         self.source_image = source_image
-        self.process = process
+        self.ffmpeg_processor = ffmpeg_processor
         self._stop_event = stop_event
         self.max_workers = max_workers
         self.resource_lock = resource_lock  # Store the lock
         
         self.name = self.__class__.__name__
-        # self.name = "
+
         # Log the properties when initializing the thread
         logger.info(
             f"Initialized {self.name},"
@@ -43,7 +43,7 @@ class FrameProcessorThread(threading.Thread):
                         if len(futures) >= self.max_workers:
                             for future in futures:
                                 processed_frame = future.result()  # Blocking call to ensure order
-                                if not self.push_stream_with_retry(processed_frame):
+                                if not self.ffmpeg_processor and not self.ffmpeg_processor.send_frame_with_retry(processed_frame):
                                     logger.error(f" Push stream failed...")
                                     # self._stop_event.set()
                                     break
@@ -70,23 +70,7 @@ class FrameProcessorThread(threading.Thread):
         # logger.info(f"Program runtime: {int(hours)} hours {int(minutes)} minutes {seconds:.2f} seconds")
         return frame
 
-    def push_stream_with_retry(self, frame, retry_count=3):
-        """Push the frame to FFmpeg with retry mechanism."""
-        for attempt in range(retry_count):
-            try:
-                self.process.stdin.write(frame.tobytes())
-                return True
-            except BrokenPipeError:
-                logger.error(f"Push Streaming failed, retrying... (attempt {attempt + 1})")
-                time.sleep(1)
-                if attempt == retry_count - 1:
-                    return False
-            except Exception as e:
-                logger.error(f"Error writing to FFmpeg: {e}")
-                time.sleep(1)
-                if attempt == retry_count - 1:
-                    return False
-        return False
+    
     
     def stop(self):
         logger.info(

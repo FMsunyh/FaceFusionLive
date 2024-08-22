@@ -22,13 +22,14 @@ class RTMPMonitorThread(threading.Thread):
 
     def run(self):
         while not self._stop_event.is_set():
+            time.sleep(self.interval)
+
             self.network_available = self.is_rtmp_available(self.rtmp_url)
             if not self.network_available:
                 logger.warning(f"RTMP server is unavailable: {self.rtmp_url}")
             else:
                 logger.info(f"RTMP server is available: {self.rtmp_url}")
 
-            time.sleep(self.interval)
 
     def is_rtmp_available(self, rtmp_url):
         """检查 RTMP 服务器是否可用"""

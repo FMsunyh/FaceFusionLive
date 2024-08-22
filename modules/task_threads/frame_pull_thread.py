@@ -5,10 +5,10 @@ import time
 import concurrent.futures
 
 class FramePullThread(threading.Thread):
-    def __init__(self,  queue, process, stop_event, max_workers=10):
+    def __init__(self,  queue, ffmpeg_processor, stop_event, max_workers=10):
         super().__init__()
         self.queue = queue
-        self.process = process
+        self.ffmpeg_processor = ffmpeg_processor
         self._stop_event = stop_event
         self.name = self.__class__.__name__
         self.max_workers  = max_workers
@@ -30,7 +30,7 @@ class FramePullThread(threading.Thread):
                         # Ensure that futures are processed in the same order
                         if len(futures) >= self.max_workers:
                             for future in futures:
-                                if not self.push_stream_with_retry(future):
+                                if not self.ffmpeg_processor and not self.ffmpeg_processor.send_frame_with_retry(future):
                                     logger.error(f" Push stream failed...")
                                     # self._stop_event.set()
                                     break
@@ -48,25 +48,3 @@ class FramePullThread(threading.Thread):
             f"Stop thread Name: {self.name}"
         )
         self._stop_event.set()
-
-    def push_stream_with_retry(self, frame, retry_count=3):
-        """Push the frame to FFmpeg with retry mechanism."""
-        if frame is None:
-            logger.info(f"Push Streaming failed, frame is none")
-            return False
-        
-        for attempt in range(retry_count):
-            try:
-                self.process.stdin.write(frame.tobytes())
-                return True
-            except BrokenPipeError:
-                logger.error(f"Push Streaming failed, retrying... (attempt {attempt + 1})")
-                time.sleep(1)
-                if attempt == retry_count - 1:
-                    return False
-            except Exception as e:
-                logger.error(f"Error writing to FFmpeg: {e}")
-                time.sleep(1)
-                if attempt == retry_count - 1:
-                    return False
-        return False
