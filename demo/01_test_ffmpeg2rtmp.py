@@ -33,7 +33,7 @@ def start_ffmpeg_process(width, height, fps,input_rtmp_url, output_rtmp_url):
         '-preset', 'fast',  # NVENC 提供了一些预设选项，"fast" 比 "ultrafast" 更高效
         '-f', 'flv',  # Output format
         '-flvflags', 'no_duration_filesize',
-        '-fps_mode', 'vfr',  # Replace -vsync with -fps_mod
+        # '-fps_mode', 'vfr',  # Replace -vsync with -fps_mod
         '-async', '1',        # Ensure audio sync
         '-shortest',          # Stop encoding when the shortest stream ends
         '-max_interleave_delta', '100M',
@@ -132,9 +132,9 @@ def webcam():
         #     process.wait()
     
         # image = cv2.cvtColor(temp_frame, cv2.COLOR_BGR2RGB)  # Convert the image to RGB format to display it with Tkinter
-        cv2.imshow('frame',temp_frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+        # cv2.imshow('frame',temp_frame)
+        # if cv2.waitKey(1) & 0xFF == ord('q'):
+        #     break
 
     cap.release()
 

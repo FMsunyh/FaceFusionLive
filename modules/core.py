@@ -229,6 +229,7 @@ def start() -> None:
 
 def start_webcam():
     webcam()
+    # ui.webcam_preview()
 
 def destroy() -> None:
     if modules.globals.target_path:
@@ -244,10 +245,12 @@ def run() -> None:
         if not frame_processor.pre_check():
             return
     limit_resources()
-    # if modules.globals.headless:
-    #     start()
-    if modules.globals.webcam:
+    if modules.globals.headless:
         start_webcam()
+        
+    #     start()
+    # if modules.globals.webcam:
+    #     start_webcam()
     else:
         window = ui.init(start, destroy)
         window.mainloop()

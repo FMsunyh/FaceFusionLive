@@ -8,7 +8,6 @@ import modules.globals
 import modules.metadata
 from modules.face_analyser import get_one_face
 from modules.processors.frame.core import get_frame_processors_modules
-import multiprocessing
 import threading
 import queue
 import socket
@@ -24,6 +23,7 @@ from modules.task_threads.rtmp_monitor_thread import RTMPMonitorThread
 from modules.task_threads.runtime_monitor_thread import RuntimeMonitorThread
 
 resource_lock = threading.Lock()
+
 
 def open_input_stream(input_rtmp_url):
     """Open the input RTMP stream."""
@@ -232,6 +232,9 @@ def webcam():
         ('rtmp://120.241.153.43:1935/live_input', 'rtmp://120.241.153.43:1935/live', modules.globals.source_path, frame_processors),
         # ('rtmp://172.30.88.43:1935/live_input', 'rtmp://172.30.88.43:1935/live', modules.globals.source_path, frame_processors),
     ]
+    face_source_path = modules.globals.source_path
+    source_image = get_one_face(cv2.imread(face_source_path))
+    
     manage_streams(streams)
 
 # if __name__ == "__main__":

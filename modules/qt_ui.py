@@ -141,7 +141,7 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
     preview_button = ctk.CTkButton(root, text='Preview', cursor='hand2', command=lambda: toggle_preview())
     preview_button.place(relx=0.65, rely=0.80, relwidth=0.2, relheight=0.05)
 
-    live_button = ctk.CTkButton(root, text='Live', cursor='hand2', command=lambda: start_webcam_preview())
+    live_button = ctk.CTkButton(root, text='Live', cursor='hand2', command=lambda: webcam_preview())
     live_button.place(relx=0.40, rely=0.86, relwidth=0.2, relheight=0.05)
 
     status_label = ctk.CTkLabel(root, text=None, justify='center')
@@ -394,8 +394,3 @@ def webcam_preview():
     cap.release()
     push_process.stdin.close()
     push_process.wait()
-
-def start_webcam_preview():
-    # 创建一个新进程来运行 webcam_preview
-    p = Process(target=webcam_preview)
-    p.start()

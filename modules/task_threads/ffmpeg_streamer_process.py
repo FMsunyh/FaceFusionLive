@@ -31,7 +31,7 @@ class FFmpegStreamerProcess:
             '-preset', 'fast',
             '-f', 'flv',
             '-flvflags', 'no_duration_filesize',
-            '-fps_mode', 'vfr',  # Replace -vsync with -fps_mode
+            # '-fps_mode', 'vfr',  # Replace -vsync with -fps_mode
             '-af', 'aresample=async=1',  # Resample audio
             '-shortest',
             '-max_interleave_delta', '100M',
