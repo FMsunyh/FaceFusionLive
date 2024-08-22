@@ -11,7 +11,8 @@ class FrameCaptureThread(threading.Thread):
         self.buffer_size = buffer_size
         self.max_retries = max_retries
         self.resource_lock = resource_lock  # Store the lock
-
+        self.name = self.__class__.__name__
+        
         # Log the properties when initializing the thread
         logger.info(
             f"Initialized FrameCaptureThread: "
@@ -30,7 +31,7 @@ class FrameCaptureThread(threading.Thread):
                     if not ret:
                         retry_count += 1
                         logger.error(f"Failed to read frame, retrying... (attempt {retry_count})")
-                        time.sleep(1)  # Wait before retrying
+                        time.sleep(0.01)  # Wait before retrying
                     else:
                         retry_count = 0  # Reset retry count on successful read
                         # with self.resource_lock:

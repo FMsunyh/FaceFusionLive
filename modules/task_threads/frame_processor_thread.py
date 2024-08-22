@@ -16,7 +16,9 @@ class FrameProcessorThread(threading.Thread):
         self._stop_event = stop_event
         self.max_workers = max_workers
         self.resource_lock = resource_lock  # Store the lock
-
+        
+        self.name = self.__class__.__name__
+        # self.name = "
         # Log the properties when initializing the thread
         logger.info(
             f"Initialized FrameProcessorThread: "
@@ -28,28 +30,32 @@ class FrameProcessorThread(threading.Thread):
     def run(self):
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = []
-            while not self._stop_event.is_set() or not self.queue.empty():
-                try:
-                    # Fetch a frame from the queue
-                    frame = self.queue.get(timeout=1)
-                    
-                    # Submit the frame processing task to the executor
-                    future = executor.submit(self.process_single_frame, frame)
-                    futures.append(future)
-                    
-                    # Ensure that futures are processed in the same order
-                    if len(futures) >= self.max_workers:
-                        for future in futures:
-                            processed_frame = future.result()  # Blocking call to ensure order
-                            if not self.push_stream_with_retry(processed_frame):
-                                logger.error("Streaming failed, unable to recover, stopping frame-processor-thread")
-                                # self._stop_event.set()
-                                break
-                        futures.clear()  # Clear the list of futures once processed
+            while not self._stop_event.is_set():
+                if not self.queue.empty():
+                    try:
+                        # Fetch a frame from the queue
+                        frame = self.queue.get(timeout=1)
+                        
+                        # Submit the frame processing task to the executor
+                        future = executor.submit(self.process_single_frame, frame)
+                        futures.append(future)
+                        
+                        # Ensure that futures are processed in the same order
+                        if len(futures) >= self.max_workers:
+                            for future in futures:
+                                processed_frame = future.result()  # Blocking call to ensure order
+                                if not self.push_stream_with_retry(processed_frame):
+                                    logger.error(f" Push stream failed...")
+                                    # self._stop_event.set()
+                                    break
+                            futures.clear()  # Clear the list of futures once processed
 
-                except queue.Empty:
-                    logger.error("Streaming queue is empty!")
-                    continue
+                    except Exception as e:
+                        logger.error(f" An abnormal error occurred...")
+                        continue
+                else:
+                    logger.info(f"Queue is empty")
+                
 
     def process_single_frame(self, frame):
         # time.sleep(0.1)

@@ -13,6 +13,8 @@ class NetworkMonitorThread(threading.Thread):
         self._stop_event = stop_event
         self.network_available = True
 
+        self.name = self.__class__.__name__
+        
     def run(self):
         while not self._stop_event.is_set():
             self.network_available = self.is_network_available()

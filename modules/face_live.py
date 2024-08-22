@@ -16,6 +16,7 @@ import socket
 from modules.task_threads.ffmpeg_subprocess import start_ffmpeg_process
 from modules.task_threads.frame_capture_thread import FrameCaptureThread
 from modules.task_threads.frame_processor_thread import FrameProcessorThread
+from modules.task_threads.frame_vis_thread import FrameVisThread
 from modules.task_threads.heart_beat_thread import HeartbeatThread
 from modules.task_threads.rtmp_monitor_thread import RTMPMonitorThread
 from modules.task_threads.runtime_monitor_thread import RuntimeMonitorThread
@@ -88,9 +89,12 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
         stop_event=stop_event,
         resource_lock=resource_lock
     )
-    frame_processor_thread.start()
+    # frame_processor_thread.start()
 
-    heartbeat_thread = HeartbeatThread(stop_event, interval=60)
+    frame_vis_thread = FrameVisThread(queue=frame_queue,stop_event=stop_event)
+    frame_vis_thread.start()
+
+    heartbeat_thread = HeartbeatThread(stop_event, interval=120)
     heartbeat_thread.start()
 
     runtime_monitor_thread = RuntimeMonitorThread(start_time=time.time(), stop_event=stop_event, interval=360)
@@ -112,7 +116,8 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
                     logger.info("FFmpeg process exited normally")
                 break
             
-            if not frame_capture_thread.is_alive() or not frame_processor_thread.is_alive() or not heartbeat_thread.is_alive() or not runtime_monitor_thread.is_alive():
+            # if not frame_capture_thread.is_alive() or not frame_processor_thread.is_alive() or not heartbeat_thread.is_alive() or not runtime_monitor_thread.is_alive():
+            if not frame_capture_thread.is_alive():
                 logger.error("One or more threads have exited abnormally.")
                 stop_event.set()
                 break
@@ -122,12 +127,17 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
 
     finally:
         logger.info("stop  thread.")
-        # stop_event.set()
-        frame_processor_thread.stop()
-        frame_processor_thread.join(timeout=1)
-
         frame_capture_thread.stop()
         frame_capture_thread.join(timeout=1)
+
+        # stop_event.set()
+        # frame_processor_thread.stop()
+        # frame_processor_thread.join(timeout=1)
+
+        frame_vis_thread.stop()
+        frame_vis_thread.join(timeout=1)
+
+
 
         heartbeat_thread.stop()
         heartbeat_thread.join(timeout=1)
@@ -168,6 +178,7 @@ def stream_worker(input_rtmp_url, output_rtmp_url, face_source_path, frame_proce
     retry_count = 0
     while retry_count < max_retries:
         try:
+            logger.info(f"=================================================================================")
             logger.info(f"Stream Worker (retry_count/max_retries): {retry_count}/{max_retries}")
             logger.info(f"Starting stream: {input_rtmp_url}")
             cap = open_input_stream(input_rtmp_url)

@@ -8,7 +8,8 @@ class HeartbeatThread(threading.Thread):
         super().__init__()
         self.interval = interval
         self._stop_event = stop_event
-                
+
+        self.name = self.__class__.__name__      
         # Log the properties when initializing the thread
         logger.info(
             f"Initialized HeartbeatThread: "
