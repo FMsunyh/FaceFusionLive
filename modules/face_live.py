@@ -16,6 +16,7 @@ import socket
 from modules.task_threads.ffmpeg_subprocess import start_ffmpeg_process
 from modules.task_threads.frame_capture_thread import FrameCaptureThread
 from modules.task_threads.frame_processor_thread import FrameProcessorThread
+from modules.task_threads.frame_pull_thread import FramePullThread
 from modules.task_threads.frame_vis_thread import FrameVisThread
 from modules.task_threads.heart_beat_thread import HeartbeatThread
 from modules.task_threads.rtmp_monitor_thread import RTMPMonitorThread
@@ -91,8 +92,11 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
     )
     # frame_processor_thread.start()
 
+    frame_pull_thread = FramePullThread(queue=frame_queue, process=process, stop_event=stop_event)
+    frame_pull_thread.start()
+    
     frame_vis_thread = FrameVisThread(queue=frame_queue,stop_event=stop_event)
-    frame_vis_thread.start()
+    # frame_vis_thread.start()
 
     heartbeat_thread = HeartbeatThread(stop_event, interval=120)
     heartbeat_thread.start()
@@ -134,9 +138,11 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
         # frame_processor_thread.stop()
         # frame_processor_thread.join(timeout=1)
 
-        frame_vis_thread.stop()
-        frame_vis_thread.join(timeout=1)
+        frame_pull_thread.stop()
+        frame_pull_thread.join(timeout=1)
 
+        # frame_vis_thread.stop()
+        # frame_vis_thread.join(timeout=1)
 
 
         heartbeat_thread.stop()
@@ -244,8 +250,8 @@ def manage_streams(streams):
 def webcam():
     frame_processors = modules.globals.frame_processors
     streams = [
-        # ('demo\\video\\m1.mp4', 'rtmp://120.241.153.43:1935/live3', modules.globals.source_path, frame_processors),
-        ('rtmp://120.241.153.43:1935/live_input', 'rtmp://120.241.153.43:1935/live3', modules.globals.source_path, frame_processors),
+        # ('demo\\video\\m1.mp4', 'rtmp://120.241.153.43:1935/live', modules.globals.source_path, frame_processors),
+        ('rtmp://120.241.153.43:1935/live_input', 'rtmp://120.241.153.43:1935/live', modules.globals.source_path, frame_processors),
         # ('rtmp://172.30.88.43:1935/live_input', 'rtmp://172.30.88.43:1935/live', modules.globals.source_path, frame_processors),
     ]
     manage_streams(streams)
