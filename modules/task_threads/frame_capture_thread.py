@@ -35,6 +35,7 @@ class FrameCaptureThread(threading.Thread):
                         retry_count = 0  # Reset retry count on successful read
                         # with self.resource_lock:
                         self.queue.put(frame)
+                        # logger.info(f"Succeeded to read frame...")
                 else:
                     time.sleep(0.01)  # Avoid busy-waiting when the buffer is full
 

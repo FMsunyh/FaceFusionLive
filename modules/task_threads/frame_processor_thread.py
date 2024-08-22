@@ -43,7 +43,7 @@ class FrameProcessorThread(threading.Thread):
                         if len(futures) >= self.max_workers:
                             for future in futures:
                                 processed_frame = future.result()  # Blocking call to ensure order
-                                if not self.ffmpeg_processor and not self.ffmpeg_processor.send_frame_with_retry(processed_frame):
+                                if self.ffmpeg_processor and not self.ffmpeg_processor.send_frame_with_retry(processed_frame):
                                     logger.error(f" Push stream failed...")
                                     # self._stop_event.set()
                                     break

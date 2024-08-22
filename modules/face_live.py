@@ -118,8 +118,8 @@ def handle_streaming(cap, ffmpeg_processor, face_source_path, frame_processors):
         # frame_processor_thread.stop()
         # frame_processor_thread.join(timeout=1)
 
-        frame_pull_thread.stop()
-        frame_pull_thread.join(timeout=1)
+        # frame_pull_thread.stop()
+        # frame_pull_thread.join(timeout=1)
 
         # frame_vis_thread.stop()
         # frame_vis_thread.join(timeout=1)

@@ -5,7 +5,7 @@ import time
 import concurrent.futures
 
 class FramePullThread(threading.Thread):
-    def __init__(self,  queue, ffmpeg_processor, stop_event, max_workers=10):
+    def __init__(self, queue, ffmpeg_processor, stop_event, max_workers=10):
         super().__init__()
         self.queue = queue
         self.ffmpeg_processor = ffmpeg_processor
@@ -30,7 +30,7 @@ class FramePullThread(threading.Thread):
                         # Ensure that futures are processed in the same order
                         if len(futures) >= self.max_workers:
                             for future in futures:
-                                if not self.ffmpeg_processor and not self.ffmpeg_processor.send_frame_with_retry(future):
+                                if self.ffmpeg_processor and not self.ffmpeg_processor.send_frame_with_retry(future):
                                     logger.error(f" Push stream failed...")
                                     # self._stop_event.set()
                                     break
