@@ -1,13 +1,11 @@
-# logger.py
-
 import logging
 from logging.handlers import TimedRotatingFileHandler
 import os
 from datetime import datetime
 
-
 class LoggerWrapper:
     _instance = None
+    _log_filename = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -15,16 +13,18 @@ class LoggerWrapper:
             cls._instance._logger = cls.setup_logger()
         return cls._instance
 
-    @staticmethod
-    def setup_logger():
+    @classmethod
+    def setup_logger(cls):
         # Ensure logs directory exists
         log_dir = 'logs'
         os.makedirs(log_dir, exist_ok=True)
 
-        # Generate a filename based on the current date and time
-        # log_filename = datetime.now().strftime('%Y-%m-%d_%H-%M-%S') + '.log'
-        log_filename = 'app.log'
-        log_filepath = os.path.join(log_dir, log_filename)
+        # Generate a filename based on the current date and time (when the program starts)
+        if cls._log_filename is None:
+            # cls._log_filename = 'server.log'
+            cls._log_filename = 'server_' + datetime.now().strftime('%Y-%m-%d') + '.log'
+        
+        log_filepath = os.path.join(log_dir, cls._log_filename)
 
         # Set up logging configuration
         logging.basicConfig(

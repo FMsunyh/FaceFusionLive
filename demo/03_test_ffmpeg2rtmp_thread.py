@@ -14,10 +14,17 @@ def Receive():
     frame_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
     frame_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     print(frame_height, frame_width)
-
+    retry_count=0
     while ret:
         ret, frame = cap.read()
-        q.put(frame)
+        if not ret:
+            retry_count += 1
+            print(f"Failed to read frame, retrying... (attempt {retry_count})")
+        else:
+            print(f"Successful to read frame")
+            retry_count = 0  # Reset retry count on successful read
+            q.put(frame)
+            
  
  
 def Display():

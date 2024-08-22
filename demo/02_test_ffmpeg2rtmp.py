@@ -62,7 +62,9 @@ ffmpeg_command = [
     '-preset', 'fast',
     '-f', 'flv',
     '-flvflags', 'no_duration_filesize',
-    '-vsync', '1',              # Use vsync for synchronization
+    # '-vsync', '1',              # Use vsync for synchronization
+    '-fps_mode', 'vfr',  # Replace -vsync with -fps_mod
+
     # '-async', '10',
     '-af', 'aresample=async=1',  # Resample audio
     '-shortest',

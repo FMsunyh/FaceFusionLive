@@ -11,7 +11,7 @@ class HeartbeatThread(threading.Thread):
                 
         # Log the properties when initializing the thread
         logger.info(
-            f"Initialized FrameProcessorThread: "
+            f"Initialized HeartbeatThread: "
             f"Thread Name: {self.name}, "
             f"Interval: {self.interval} "
         )

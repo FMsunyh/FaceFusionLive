@@ -168,6 +168,7 @@ def stream_worker(input_rtmp_url, output_rtmp_url, face_source_path, frame_proce
     retry_count = 0
     while retry_count < max_retries:
         try:
+            logger.info(f"Stream Worker (retry_count/max_retries): {retry_count}/{max_retries}")
             logger.info(f"Starting stream: {input_rtmp_url}")
             cap = open_input_stream(input_rtmp_url)
             width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -200,17 +201,19 @@ def manage_streams(streams):
     processes = []
 
     def start_stream_process(stream_info):
+        logger.info(f"=======================Start=======================")
         input_url, output_url, face_source_path, frame_processors = stream_info
         p = Process(target=stream_worker, args=(input_url, output_url, face_source_path, frame_processors))
         p.daemon = True
         p.start()
+        logger.info(f"Started process {p.name} handling stream: {stream_info[0]} -> {stream_info[1]}")
+
         return p
 
     for stream_info in streams:
         p = start_stream_process(stream_info)
         processes.append(p)
-        logger.info(f"=======================Start=======================")
-        logger.info(f"Started process {p.name} handling stream: {stream_info[0]} -> {stream_info[1]}")
+
     
     try:
         while True:
