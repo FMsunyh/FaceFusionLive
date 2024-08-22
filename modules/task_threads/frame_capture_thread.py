@@ -12,11 +12,10 @@ class FrameCaptureThread(threading.Thread):
         self.max_retries = max_retries
         self.resource_lock = resource_lock  # Store the lock
         self.name = self.__class__.__name__
-        
+
         # Log the properties when initializing the thread
         logger.info(
-            f"Initialized FrameCaptureThread: "
-            f"Thread Name: {self.name}, "
+            f"Initialized {self.name},"
             f"Queue Size: {self.queue.qsize()}, "
             f"Buffer Size: {self.buffer_size}, "
             f"Max Retries: {self.max_retries}"

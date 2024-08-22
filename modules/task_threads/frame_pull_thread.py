@@ -14,7 +14,7 @@ class FramePullThread(threading.Thread):
         self.max_workers  = max_workers
         # Log the properties when initializing the thread
         logger.info(
-            f"Initialized Thread Name: {self.name}"
+            f"Initialized {self.name},"
         )
 
     def run(self):

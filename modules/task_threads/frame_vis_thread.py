@@ -13,8 +13,7 @@ class FrameVisThread(threading.Thread):
                 
         # Log the properties when initializing the thread
         logger.info(
-            f"Initialized FrameVisThread: "
-            f"Thread Name: {self.name}, "
+            f"Initialized {self.name},"
         )
 
     def run(self):

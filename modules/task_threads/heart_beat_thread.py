@@ -12,8 +12,7 @@ class HeartbeatThread(threading.Thread):
         self.name = self.__class__.__name__      
         # Log the properties when initializing the thread
         logger.info(
-            f"Initialized HeartbeatThread: "
-            f"Thread Name: {self.name}, "
+            f"Initialized {self.name},"
             f"Interval: {self.interval} "
         )
 

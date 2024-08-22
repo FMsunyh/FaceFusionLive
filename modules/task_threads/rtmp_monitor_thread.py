@@ -13,7 +13,13 @@ class RTMPMonitorThread(threading.Thread):
         self.network_available = True
 
         self.name = self.__class__.__name__
-        
+
+        logger.info(
+            f"Initialized {self.name},"
+            f"Interval: {self.interval}, "
+            f"rtmp url: {self.rtmp_url} "
+        )
+
     def run(self):
         while not self._stop_event.is_set():
             self.network_available = self.is_rtmp_available(self.rtmp_url)

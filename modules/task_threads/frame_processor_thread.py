@@ -21,8 +21,7 @@ class FrameProcessorThread(threading.Thread):
         # self.name = "
         # Log the properties when initializing the thread
         logger.info(
-            f"Initialized FrameProcessorThread: "
-            f"Thread Name: {self.name}, "
+            f"Initialized {self.name},"
             f"Queue Size: {self.queue.qsize()}, "
             f"Max Workers: {self.max_workers}"
         )
