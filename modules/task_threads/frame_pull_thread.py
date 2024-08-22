@@ -40,8 +40,7 @@ class FramePullThread(threading.Thread):
                         logger.error(f" An abnormal error occurred...{e}")
                         continue
                 else:
-                    pass
-                    # logger.info(f"Queue is empty")
+                    logger.info(f"Queue is empty")
 
     def stop(self):
         logger.info(

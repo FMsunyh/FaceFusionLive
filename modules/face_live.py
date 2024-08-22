@@ -61,8 +61,7 @@ def handle_streaming(cap, ffmpeg_processor, face_source_path, frame_processors):
         cap, 
         frame_queue, 
         stop_event, 
-        buffer_size=10,
-        resource_lock=resource_lock
+        buffer_size=10
         )
     frame_capture_thread.start()
 
@@ -73,12 +72,12 @@ def handle_streaming(cap, ffmpeg_processor, face_source_path, frame_processors):
         source_image=source_image,
         ffmpeg_processor=ffmpeg_processor,
         stop_event=stop_event,
-        resource_lock=resource_lock
+        max_workers=12
     )
-    # frame_processor_thread.start()
+    frame_processor_thread.start()
 
     frame_pull_thread = FramePullThread(queue=frame_queue, ffmpeg_processor=ffmpeg_processor, stop_event=stop_event)
-    frame_pull_thread.start()
+    # frame_pull_thread.start()
     
     frame_vis_thread = FrameVisThread(queue=frame_queue,stop_event=stop_event)
     # frame_vis_thread.start()
@@ -103,7 +102,6 @@ def handle_streaming(cap, ffmpeg_processor, face_source_path, frame_processors):
             # if not frame_capture_thread.is_alive() or not frame_processor_thread.is_alive() or not heartbeat_thread.is_alive() or not runtime_monitor_thread.is_alive():
             if not frame_capture_thread.is_alive():
                 logger.error("One or more threads have exited abnormally.")
-                stop_event.set()
                 break
 
     except Exception as e:
@@ -114,9 +112,8 @@ def handle_streaming(cap, ffmpeg_processor, face_source_path, frame_processors):
         frame_capture_thread.stop()
         frame_capture_thread.join(timeout=1)
 
-        # stop_event.set()
-        # frame_processor_thread.stop()
-        # frame_processor_thread.join(timeout=1)
+        frame_processor_thread.stop()
+        frame_processor_thread.join(timeout=1)
 
         # frame_pull_thread.stop()
         # frame_pull_thread.join(timeout=1)

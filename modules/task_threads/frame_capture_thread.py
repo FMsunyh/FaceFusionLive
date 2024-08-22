@@ -3,14 +3,14 @@ from modules.logger import logger
 import time
 
 class FrameCaptureThread(threading.Thread):
-    def __init__(self, cap, queue, stop_event, buffer_size=10, max_retries=20, resource_lock=None):
+    def __init__(self, cap, queue, stop_event, buffer_size=10, max_retries=20):
         super().__init__()
         self.cap = cap
         self.queue = queue
         self._stop_event = stop_event
         self.buffer_size = buffer_size
         self.max_retries = max_retries
-        self.resource_lock = resource_lock  # Store the lock
+
         self.name = self.__class__.__name__
 
         # Log the properties when initializing the thread
@@ -35,7 +35,7 @@ class FrameCaptureThread(threading.Thread):
                         retry_count = 0  # Reset retry count on successful read
                         # with self.resource_lock:
                         self.queue.put(frame)
-                        # logger.info(f"Succeeded to read frame...")
+                        # logger.info(f"Succeeded to read frame...{self.queue.qsize()}/{self.buffer_size}")
                 else:
                     time.sleep(0.01)  # Avoid busy-waiting when the buffer is full
 
