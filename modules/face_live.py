@@ -97,7 +97,7 @@ def handle_streaming(cap, ffmpeg_processor, face_source_path, frame_processors):
 
     try:
         while True:
-            time.sleep(120)
+            time.sleep(5)
             
             if not ffmpeg_processor.is_running():
                 logger.error("ffmpeg processor have exited abnormally.")

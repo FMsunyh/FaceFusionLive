@@ -5,3 +5,4 @@ import numpy
 
 Face = Face
 Frame = numpy.ndarray[Any, Any]
+Matrix = numpy.ndarray[Any, Any]

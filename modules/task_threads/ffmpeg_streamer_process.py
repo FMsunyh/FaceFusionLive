@@ -44,6 +44,9 @@ class FFmpegStreamerProcess:
 
     def stop(self):
         """Stop the FFmpeg process."""
+        if self.process is None:
+            return
+        
         try:
             if self.process.stdin:
                 self.process.stdin.close()
