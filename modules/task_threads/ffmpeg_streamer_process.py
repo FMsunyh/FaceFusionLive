@@ -65,13 +65,16 @@ class FFmpegStreamerProcess:
 
     def is_running(self):
         """Check if the FFmpeg process is still running."""
-        # exit_code = self.process.poll()
-        # if exit_code != 0:
-        #     logger.error(f"FFmpeg process exited abnormally, exit code: {exit_code}")
-        # else:
-        #     logger.info("FFmpeg process exited normally")
-
-        return self.process is not None and self.process.poll() is None
+        if self.process is None:
+            return False
+        # poll() returns None if the process is still running
+        if self.process.poll() is None:
+            return True
+        else:
+            # If poll() returns a value, the process has exited
+            logger.info(f"FFmpeg process exited with code: {self.process.poll()}")
+            self.process = None  # Clear the process to reflect that it's no longer running
+            return False
 
     def send_frame(self, frame):
         """Send a video frame to the FFmpeg process."""

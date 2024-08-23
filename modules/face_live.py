@@ -21,6 +21,7 @@ from modules.task_threads.frame_vis_thread import FrameVisThread
 from modules.task_threads.heart_beat_thread import HeartbeatThread
 from modules.task_threads.rtmp_monitor_thread import RTMPMonitorThread
 from modules.task_threads.runtime_monitor_thread import RuntimeMonitorThread
+import signal
 
 resource_lock = threading.Lock()
 
@@ -96,14 +97,19 @@ def handle_streaming(cap, ffmpeg_processor, face_source_path, frame_processors):
 
     try:
         while True:
+            time.sleep(120)
+            
             if not ffmpeg_processor.is_running():
+                logger.error("ffmpeg processor have exited abnormally.")
                 break
             
             # if not frame_capture_thread.is_alive() or not frame_processor_thread.is_alive() or not heartbeat_thread.is_alive() or not runtime_monitor_thread.is_alive():
             if not frame_capture_thread.is_alive():
                 logger.error("One or more threads have exited abnormally.")
                 break
-
+            
+            logger.info("handle streaming: Main program is running normally")
+            
     except Exception as e:
         logger.error(f"Error in streaming: {e}")
 
@@ -154,9 +160,23 @@ def test(cap, process):
 
     # cleanup_resources(cap, process)
 
+def signal_handler(sig, frame, ffmpeg_processor):
+    """Handle termination signals to gracefully stop the FFmpeg process."""
+    logger.info("Received termination signal, stopping FFmpeg process...")
+    ffmpeg_processor.stop()
+    logger.info("FFmpeg process stopped, exiting program.")
+    exit(0)
+    
 def stream_worker(input_rtmp_url, output_rtmp_url, face_source_path, frame_processors, restart_interval=1, max_retries=100):
     """RTMP stream worker with retry mechanism."""
     retry_count = 0
+    
+    ffmpeg_processor = None  # Initialize the ffmpeg_processor variable
+
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, lambda sig, frame: signal_handler(sig, frame, ffmpeg_processor))
+    signal.signal(signal.SIGTERM, lambda sig, frame: signal_handler(sig, frame, ffmpeg_processor))
+    
     while retry_count < max_retries:
         try:
             logger.info(f"=================================================================================")
