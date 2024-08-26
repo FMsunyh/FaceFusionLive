@@ -113,24 +113,35 @@ def handle_streaming(cap, ffmpeg_processor, face_source_path, frame_processors):
 
     try:
         while True:
-            time.sleep(5)
+            # time.sleep(120)
             
             if not ffmpeg_processor.is_running():
-                logger.error("ffmpeg processor have exited abnormally.")
+                logger.error("ffmpeg push processor have exited abnormally.")
                 break
             
-            # if not frame_capture_thread.is_alive() or not frame_processor_thread.is_alive() or not heartbeat_thread.is_alive() or not runtime_monitor_thread.is_alive():
             if not frame_capture_thread.is_alive():
-                logger.error("One or more threads have exited abnormally.")
+                logger.error("frame_capture_thread have exited abnormally.")
                 break
             
-            logger.info("handle streaming: Main program is running normally")
+            if not frame_processor_thread.is_alive():
+                logger.error("frame_processor_thread have exited abnormally.")
+                break
+            
+            if not heartbeat_thread.is_alive():
+                logger.error("heartbeat_thread have exited abnormally.")
+                break
+            
+            if not runtime_monitor_thread.is_alive():
+                logger.error("runtime_monitor_thread have exited abnormally.")
+                break
+            
+            # logger.info("handle streaming: Main program is running normally")
             
     except Exception as e:
         logger.error(f"Error in streaming: {e}")
 
     finally:
-        logger.info("stop  thread.")
+        logger.info("Handler streaming : Stop  thread.")
         frame_capture_thread.stop()
         frame_capture_thread.join(timeout=1)
 

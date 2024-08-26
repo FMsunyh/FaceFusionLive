@@ -1,6 +1,8 @@
 import subprocess
 from modules.logger import logger
 import time
+import threading
+import io
 
 class FFmpegStreamerProcess:
     def __init__(self, width, height, fps, input_rtmp_url, output_rtmp_url):
@@ -39,12 +41,28 @@ class FFmpegStreamerProcess:
             '-analyzeduration', '100M',
             self.output_rtmp_url
         ]
+        
         self.process = subprocess.Popen(ffmpeg_command, stdin=subprocess.PIPE)
-        logger.info(f"Started FFmpeg streaming to: {self.output_rtmp_url}")
+        
+                # Start a thread to read stderr
+        # self.stderr_thread = threading.Thread(target=self._read_stderr)
+        # self.stderr_thread.start()
+        
+        logger.info(f"Started FFmpeg process: {self.output_rtmp_url}")
 
+    def _read_stderr(self):
+        """Continuously read from stderr."""
+        while True:
+            output = self.process.stderr.readline()
+            if output == b'' and self.process.poll() is not None:
+                break
+            if output:
+                logger.error(f"FFmpeg stderr: {output.decode('utf-8')}")
+                
     def stop(self):
         """Stop the FFmpeg process."""
         if self.process is None:
+            logger.info("FFmpeg is None")
             return
         
         try:
