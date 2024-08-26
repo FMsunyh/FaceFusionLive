@@ -186,3 +186,4 @@ insightface/models/buffalo_l.zip
 OPENNSFW2/.opennsfw2/weights/open_nsfw_weights.h5
 ffmpeg
 .vscode
+logs

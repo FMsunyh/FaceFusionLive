@@ -21,8 +21,8 @@ class LoggerWrapper:
 
         # Generate a filename based on the current date and time (when the program starts)
         if cls._log_filename is None:
-            # cls._log_filename = 'server.log'
-            cls._log_filename = 'server_' + datetime.now().strftime('%Y-%m-%d') + '.log'
+            cls._log_filename = 'server.log'
+            # cls._log_filename = 'server_' + datetime.now().strftime('%Y-%m-%d') + '.log'
         
         log_filepath = os.path.join(log_dir, cls._log_filename)
 

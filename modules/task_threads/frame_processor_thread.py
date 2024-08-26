@@ -90,8 +90,8 @@ class FrameProcessorThread(threading.Thread):
                         logger.error(f" An abnormal error occurred...{e}")
                         continue
                 else:
-                    # pass
-                    logger.info(f"Queue is empty")
+                    pass
+                    # logger.info(f"Queue is empty")
 
     def process_single_frame(self, frame):
         # time.sleep(0.1)

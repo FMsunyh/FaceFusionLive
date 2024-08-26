@@ -26,12 +26,28 @@ import signal
 resource_lock = threading.Lock()
 
 
-def open_input_stream(input_rtmp_url):
-    """Open the input RTMP stream."""
-    cap = cv2.VideoCapture(input_rtmp_url)
-    if not cap.isOpened():
-        raise RuntimeError(f"Cannot open input stream: {input_rtmp_url}")
-    return cap
+# def open_input_stream(input_rtmp_url):
+#     """Open the input RTMP stream."""
+#     cap = cv2.VideoCapture(input_rtmp_url)
+#     if not cap.isOpened():
+#         raise RuntimeError(f"Cannot open input stream: {input_rtmp_url}")
+#     return cap
+
+def open_input_stream(input_rtmp_url, delay=5):
+    """Continuously attempt to open the input RTMP stream until successful."""
+    while True:
+        try:
+            cap = cv2.VideoCapture(input_rtmp_url)
+            if cap.isOpened():
+                logger.info(f"Successfully opened input stream: {input_rtmp_url}")
+                return cap
+            else:
+                logger.error(f"Failed to open input stream: {input_rtmp_url}. Retrying in {delay} seconds...")
+                cap.release()  # Release the capture if opened
+        except Exception as e:
+            logger.error(f"An error occurred: {e}. Retrying in {delay} seconds...")
+
+        time.sleep(delay)
 
 def cleanup_resources(cap, process):
     """Release resources, close video stream and FFmpeg process."""
