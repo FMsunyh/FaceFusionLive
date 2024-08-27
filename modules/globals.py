@@ -9,6 +9,7 @@ file_types = [
     ('Video', ('*.mp4','*.mkv'))
 ]
 
+rtmp_ouput_path = None
 source_path = None
 target_path = None
 output_path = None

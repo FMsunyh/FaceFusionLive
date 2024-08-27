@@ -273,9 +273,11 @@ def manage_streams(streams):
 
 def webcam():
     frame_processors = modules.globals.frame_processors
+    rtmp_output = modules.globals.rtmp_output
     streams = [
         # ('demo\\video\\m1.mp4', 'rtmp://120.241.153.43:1935/live', modules.globals.source_path, frame_processors),
-        ('rtmp://120.241.153.43:1935/live_input', 'rtmp://120.241.153.43:1935/live', modules.globals.source_path, frame_processors),
+        # ('rtmp://120.241.153.43:1935/live_input', 'rtmp://120.241.153.43:1935/live', modules.globals.source_path, frame_processors),
+        ('rtmp://120.241.153.43:1935/live_input', rtmp_output, modules.globals.source_path, frame_processors),
         # ('rtmp://172.30.88.43:1935/live_input', 'rtmp://172.30.88.43:1935/live', modules.globals.source_path, frame_processors),
     ]
     face_source_path = modules.globals.source_path
