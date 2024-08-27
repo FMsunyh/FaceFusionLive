@@ -2,3 +2,9 @@ D:\code\FaceFusionLive\Dlab\python run.py --execution-provider cuda --execution-
 
 python run.py --execution-provider cuda --execution-threads 60 --max-memory 60 --source "demo/images/masik.PNG" --rtmp_output "rtmp://120.241.153.43:1935/live"
 --frame-processor face_swapper face_enhancer 
+
+python run.py --execution-provider cuda --execution-threads 60 --max-memory 60 --source "demo/images/hgf.jpg" --rtmp_output "rtmp://120.241.153.43:1935/live"
+
+
+--source "demo/images/masik.PNG"
+--source "demo/images/hgf.jpg"
