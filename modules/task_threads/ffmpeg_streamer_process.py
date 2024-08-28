@@ -53,12 +53,12 @@ class FFmpegStreamerProcess:
     def _read_stderr(self):
         """Continuously read from stderr."""
         while True:
-            if self.process is not None and self.process.stderr:
-                output = self.process.stderr.readline()
-                if output == b'' and self.process.poll() is not None:
-                    break
-                if output:
-                    logger.error(f"FFmpegStreamer stderr: {output.decode('utf-8')}")
+            # if self.process is not None and self.process.stderr:
+            output = self.process.stderr.readline()
+            if output == b'' and self.process.poll() is not None:
+                break
+            if output:
+                logger.error(f"FFmpegStreamer stderr: {output.decode('utf-8')}")
                 
     def stop(self):
         """Stop the FFmpeg process."""
