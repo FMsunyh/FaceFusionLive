@@ -14,6 +14,7 @@ import socket
 
 from modules.task_threads.ffmpeg_streamer_process import FFmpegStreamerProcess
 from modules.task_threads.ffmpeg_subprocess import start_ffmpeg_process
+from modules.task_threads.frame_add_time_thread import FrameAddTimeThread
 from modules.task_threads.frame_capture_thread import FrameCaptureThread
 from modules.task_threads.frame_processor_thread import FrameProcessorThread
 from modules.task_threads.frame_pull_thread import FramePullThread
@@ -92,6 +93,16 @@ def handle_streaming(cap, ffmpeg_processor, face_source_path, frame_processors):
         max_workers=12
     )
     frame_processor_thread.start()
+    
+    frame_addtime_thread = FrameAddTimeThread(
+        queue=frame_queue, 
+        frame_processors=frame_processors, 
+        source_image=source_image,
+        ffmpeg_processor=ffmpeg_processor,
+        stop_event=stop_event,
+        max_workers=12
+    )
+    frame_addtime_thread.start()
 
     frame_pull_thread = FramePullThread(queue=frame_queue, ffmpeg_processor=ffmpeg_processor, stop_event=stop_event)
     # frame_pull_thread.start()
@@ -119,13 +130,18 @@ def handle_streaming(cap, ffmpeg_processor, face_source_path, frame_processors):
                 logger.error("ffmpeg push processor have exited abnormally.")
                 break
             
-            if not frame_capture_thread.is_alive():
-                logger.error("frame_capture_thread have exited abnormally.")
-                break
+            # if not frame_capture_thread.is_alive():
+            #     logger.error("frame_capture_thread have exited abnormally.")
+            #     break
             
             if not frame_processor_thread.is_alive():
                 logger.error("frame_processor_thread have exited abnormally.")
                 break
+                        
+            if not frame_addtime_thread.is_alive():
+                logger.error("frame_processor_thread have exited abnormally.")
+                break
+            
             
             if not heartbeat_thread.is_alive():
                 logger.error("heartbeat_thread have exited abnormally.")
@@ -145,9 +161,12 @@ def handle_streaming(cap, ffmpeg_processor, face_source_path, frame_processors):
         frame_capture_thread.stop()
         frame_capture_thread.join(timeout=1)
 
-        frame_processor_thread.stop()
-        frame_processor_thread.join(timeout=1)
+        # frame_processor_thread.stop()
+        # frame_processor_thread.join(timeout=1)
 
+        frame_addtime_thread.stop()
+        frame_addtime_thread.join(timeout=1)
+        
         # frame_pull_thread.stop()
         # frame_pull_thread.join(timeout=1)
 
@@ -272,16 +291,14 @@ def manage_streams(streams):
         logger.info("All processes closed. Program exiting.")
 
 def webcam():
+    source_path =  modules.globals.source_path
+    rtmp_input = modules.globals.rtmp_input # 'rtmp://120.241.153.43:1935/live_input'，'demo\\video\\m1.mp4'
+    rtmp_output = modules.globals.rtmp_output # 'rtmp://120.241.153.43:1935/live'
     frame_processors = modules.globals.frame_processors
-    rtmp_output = modules.globals.rtmp_output
+    
     streams = [
-        # ('demo\\video\\m1.mp4', 'rtmp://120.241.153.43:1935/live', modules.globals.source_path, frame_processors),
-        # ('rtmp://120.241.153.43:1935/live_input', 'rtmp://120.241.153.43:1935/live', modules.globals.source_path, frame_processors),
-        ('rtmp://120.241.153.43:1935/live_input', rtmp_output, modules.globals.source_path, frame_processors),
-        # ('rtmp://172.30.88.43:1935/live_input', 'rtmp://172.30.88.43:1935/live', modules.globals.source_path, frame_processors),
+        (rtmp_input, rtmp_output,source_path, frame_processors),
     ]
-    face_source_path = modules.globals.source_path
-    source_image = get_one_face(cv2.imread(face_source_path))
     
     manage_streams(streams)
 

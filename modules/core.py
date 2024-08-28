@@ -48,6 +48,7 @@ def parse_args() -> None:
     program.add_argument('--execution-threads', help='number of execution threads', dest='execution_threads', type=int, default=suggest_execution_threads())
     program.add_argument('-v', '--version', action='version', version=f'{modules.metadata.name} {modules.metadata.version}')
 
+    program.add_argument('--rtmp_input', help='rtmp output', dest='rtmp_input')
     program.add_argument('--rtmp_output', help='rtmp output', dest='rtmp_output')
     
     # register deprecated args
@@ -74,6 +75,7 @@ def parse_args() -> None:
     modules.globals.execution_providers = decode_execution_providers(args.execution_provider)
     modules.globals.execution_threads = args.execution_threads
 
+    modules.globals.rtmp_input = args.rtmp_input
     modules.globals.rtmp_output = args.rtmp_output
     
     #for ENHANCER tumbler:
