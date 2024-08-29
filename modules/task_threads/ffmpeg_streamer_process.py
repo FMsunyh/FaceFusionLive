@@ -42,7 +42,7 @@ class FFmpegStreamerProcess:
             self.output_rtmp_url
         ]
         
-        self.process = subprocess.Popen(ffmpeg_command, stdin=subprocess.PIPE, stderr=io.open('logs/ffmpeg.logs', 'w', buffering=1))
+        self.process = subprocess.Popen(ffmpeg_command, stdin=subprocess.PIPE, stderr=io.open('logs/ffmpeg.log', 'w', buffering=1))
         
         # Start a thread to read stderr
         # self.stderr_thread = threading.Thread(target=self._read_stderr)

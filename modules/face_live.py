@@ -102,7 +102,7 @@ def handle_streaming(cap, ffmpeg_processor, face_source_path, frame_processors):
         stop_event=stop_event,
         max_workers=12
     )
-    frame_addtime_thread.start()
+    # frame_addtime_thread.start()
 
     frame_pull_thread = FramePullThread(queue=frame_queue, ffmpeg_processor=ffmpeg_processor, stop_event=stop_event)
     # frame_pull_thread.start()
@@ -130,17 +130,17 @@ def handle_streaming(cap, ffmpeg_processor, face_source_path, frame_processors):
                 logger.error("ffmpeg push processor have exited abnormally.")
                 break
             
-            # if not frame_capture_thread.is_alive():
-            #     logger.error("frame_capture_thread have exited abnormally.")
-            #     break
+            if not frame_capture_thread.is_alive():
+                logger.error("frame_capture_thread have exited abnormally.")
+                break
             
             if not frame_processor_thread.is_alive():
                 logger.error("frame_processor_thread have exited abnormally.")
                 break
                         
-            if not frame_addtime_thread.is_alive():
-                logger.error("frame_processor_thread have exited abnormally.")
-                break
+            # if not frame_addtime_thread.is_alive():
+            #     logger.error("frame_processor_thread have exited abnormally.")
+            #     break
             
             
             if not heartbeat_thread.is_alive():
@@ -161,11 +161,11 @@ def handle_streaming(cap, ffmpeg_processor, face_source_path, frame_processors):
         frame_capture_thread.stop()
         frame_capture_thread.join(timeout=1)
 
-        # frame_processor_thread.stop()
-        # frame_processor_thread.join(timeout=1)
+        frame_processor_thread.stop()
+        frame_processor_thread.join(timeout=1)
 
-        frame_addtime_thread.stop()
-        frame_addtime_thread.join(timeout=1)
+        # frame_addtime_thread.stop()
+        # frame_addtime_thread.join(timeout=1)
         
         # frame_pull_thread.stop()
         # frame_pull_thread.join(timeout=1)
