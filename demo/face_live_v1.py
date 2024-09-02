@@ -280,7 +280,7 @@ def manage_streams(streams):
 def webcam():
     frame_processors = modules.globals.frame_processors
     streams = [
-        ('rtmp://183.232.228.244:1935/live_input', 'rtmp://183.232.228.244:1935/live', "C:\\Users\\ads\\Desktop\\facefusion\\sun.png", frame_processors),
+        ('rtmp://183.232.228.244:1935/live_input', 'rtmp://183.232.228.244:1935/live', "demo/images/face.png", frame_processors),
     ]
     manage_streams(streams)
 
