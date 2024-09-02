@@ -31,8 +31,8 @@ logging.basicConfig(
 )
 
 # # 定义RTMP服务器的输入输出URL
-# input_rtmp_url = 'rtmp://120.241.153.43:1935/live_input'
-# output_rtmp_url = "rtmp://120.241.153.43:1935/live"
+# input_rtmp_url = 'rtmp://183.232.228.244:1935/live_input'
+# output_rtmp_url = "rtmp://183.232.228.244:1935/live"
 # frame_width = 1280
 # frame_height = 720
 # fps = 30
@@ -280,7 +280,7 @@ def manage_streams(streams):
 def webcam():
     frame_processors = modules.globals.frame_processors
     streams = [
-        ('rtmp://120.241.153.43:1935/live_input', 'rtmp://120.241.153.43:1935/live', "C:\\Users\\ads\\Desktop\\facefusion\\sun.png", frame_processors),
+        ('rtmp://183.232.228.244:1935/live_input', 'rtmp://183.232.228.244:1935/live', "C:\\Users\\ads\\Desktop\\facefusion\\sun.png", frame_processors),
     ]
     manage_streams(streams)
 

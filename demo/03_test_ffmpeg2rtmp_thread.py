@@ -6,9 +6,9 @@ q=queue.Queue()
  
 def Receive():
     print("start Reveive")
-    # cap = cv2.VideoCapture("rtmp://120.241.153.43/live/videos/test2")
-    # cap = cv2.VideoCapture("rtsp://120.241.153.43:1935/live_input")
-    cap = cv2.VideoCapture("rtmp://183.232.228.244:1935/live_input")
+    # cap = cv2.VideoCapture("rtmp://183.232.228.244/live/videos/test2")
+    # cap = cv2.VideoCapture("rtsp://183.232.228.244:1935/live_input")
+    cap = cv2.VideoCapture(" ")
     ret, frame = cap.read()
     q.put(frame)
     frame_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)

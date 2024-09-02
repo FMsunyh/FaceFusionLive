@@ -496,10 +496,10 @@ def handle_streaming(cap, process, face_source_path, frame_processors):
     runtime_monitor_thread = RuntimeMonitorThread(start_time=time.time(), stop_event=stop_event, interval=360)
     runtime_monitor_thread.start()
 
-    # network_monitor_thread = NetworkMonitorThread(stop_event=stop_event, interval=5, check_host="rtmp://120.241.153.43")
+    # network_monitor_thread = NetworkMonitorThread(stop_event=stop_event, interval=5, check_host="rtmp://183.232.228.244")
     # network_monitor_thread.start()
 
-    rtmp_monitor_thread = RTMPMonitorThread(rtmp_url='rtmp://120.241.153.43:1935', stop_event=stop_event, interval=5)
+    rtmp_monitor_thread = RTMPMonitorThread(rtmp_url='rtmp://183.232.228.244:1935', stop_event=stop_event, interval=5)
     rtmp_monitor_thread.start()
 
     try:
@@ -594,7 +594,7 @@ def manage_streams(streams):
 def webcam():
     frame_processors = modules.globals.frame_processors
     streams = [
-        ('rtmp://120.241.153.43:1935/live_input', 'rtmp://120.241.153.43:1935/live', modules.globals.source_path, frame_processors),
+        ('rtmp://183.232.228.244:1935/live_input', 'rtmp://183.232.228.244:1935/live', modules.globals.source_path, frame_processors),
     ]
     manage_streams(streams)
 

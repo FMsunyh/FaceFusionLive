@@ -38,8 +38,8 @@ status_label = None
 img_ft, vid_ft = modules.globals.file_types
 
 # RTMP server URL and stream key
-input_rtmp_url = 'rtmp://120.241.153.43:1935/live_input'
-output_rtmp_url = "rtmp://120.241.153.43:1935/live"
+input_rtmp_url = 'rtmp://183.232.228.244:1935/live_input'
+output_rtmp_url = "rtmp://183.232.228.244:1935/live"
 # Set the frame width, height, and frames per second (FPS)
 frame_width = 1280
 frame_height = 720

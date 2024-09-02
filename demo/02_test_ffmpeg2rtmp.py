@@ -3,8 +3,8 @@ import numpy as np
 import subprocess
 import time
 # RTMP server URL and stream key
-input_rtmp_url = 'rtmp://120.241.153.43:1935/live_input'
-output_rtmp_url = "rtmp://120.241.153.43:1935/demo"
+input_rtmp_url = 'rtmp://183.232.228.244:1935/live_input'
+output_rtmp_url = "rtmp://183.232.228.244:1935/demo"
 
 # Set the frame width, height, and frames per second (FPS)
 cap = cv2.VideoCapture(input_rtmp_url)

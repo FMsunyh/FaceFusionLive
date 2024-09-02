@@ -8,8 +8,8 @@ import time
 import datetime
 
 # RTMP server URL and stream key
-input_rtmp_url = 'rtmp://120.241.153.43:1935/live_input'
-output_rtmp_url = "rtmp://120.241.153.43:1935/demo"
+input_rtmp_url = 'rtmp://183.232.228.244:1935/live_input'
+output_rtmp_url = "rtmp://183.232.228.244:1935/demo"
 
 def start_ffmpeg_process(width, height, fps,input_rtmp_url, output_rtmp_url):
     """启动FFmpeg进程，用于推送处理后的视频流"""
