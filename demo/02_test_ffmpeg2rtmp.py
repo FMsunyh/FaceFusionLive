@@ -55,7 +55,8 @@ ffmpeg_command = [
     '-i', '-',
     '-itsoffset', '2',   # 延迟音频
     '-i', input_rtmp_url,
-    '-c:v', 'h264_nvenc',
+    '-c:v', 'libx264',  # Video codec
+    # '-c:v', 'h264_nvenc',
     '-c:a', 'aac',
     '-b:a', '128k',
     '-pix_fmt', 'yuv420p',
